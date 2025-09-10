@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class BlogRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'title' => 'required|string|max:255',
+            'short_description' => 'nullable|string|max:500',
+            'content' => 'required|string',
+            'author_id' => 'nullable',
+            'is_published' => 'nullable',
+            'published_at' => 'nullable|date',
+            'featured_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ];
+    }
+}
