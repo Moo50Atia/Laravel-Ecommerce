@@ -1,4 +1,6 @@
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
   <div class="container mx-auto px-4 py-12">
     <form action="{{ route("vendor.products.update", $product->id) }}" method="POST" enctype="multipart/form-data" class="bg-white p-6 rounded-lg shadow-md">
       @csrf
@@ -49,5 +51,5 @@
       <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">تحديث المنتج</button>
     </form>
   </div>
-</x-app-layout>
+@endsection
 

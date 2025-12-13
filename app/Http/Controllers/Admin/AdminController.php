@@ -11,9 +11,29 @@ use App\Models\Category;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Repositories\Contracts\ProductRepositoryInterface;
+use App\Repositories\Contracts\OrderRepositoryInterface;
+use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Repositories\Contracts\VendorRepositoryInterface;
 
 class AdminController extends Controller
 {
+    protected $productRepository;
+    protected $orderRepository;
+    protected $userRepository;
+    protected $vendorRepository;
+
+    public function __construct(
+        ProductRepositoryInterface $productRepository,
+        OrderRepositoryInterface $orderRepository,
+        UserRepositoryInterface $userRepository,
+        VendorRepositoryInterface $vendorRepository
+    ) {
+        $this->productRepository = $productRepository;
+        $this->orderRepository = $orderRepository;
+        $this->userRepository = $userRepository;
+        $this->vendorRepository = $vendorRepository;
+    }
     /**
      * Filter query by admin's city
      * This method applies city-based filtering to any model that has a relationship
@@ -76,101 +96,73 @@ class AdminController extends Controller
     
     public function dashboard()
     {
-        // Get current month and previous month for comparison
-        $currentMonth = Carbon::now()->startOfMonth();
-        $previousMonth = Carbon::now()->subMonth()->startOfMonth();
         $user = Auth::user();
         
-        // Apply city-based filtering for admin users
-        $productQuery = Product::query();
-        $vendorQuery = Vendor::query();
-        $orderQuery = Order::query();
+        // Get statistics using repositories
+        $productStats = $this->productRepository->getAdminStatistics($user);
+        $orderStats = $this->orderRepository->getAdminStatistics($user);
+        $userStats = $this->userRepository->getStatistics();
+        $vendorStats = $this->vendorRepository->getStatistics();
         
-        if ($user->role == 'admin') {
-            // Filter products by vendor's city
-            $productQuery = $productQuery->ForAdmin($user);
-            
-            // Filter vendors by user's city
-            $vendorQuery = $vendorQuery->ForAdmin($user);
-            
-        // Filter orders by user's city
-            $orderQuery = $orderQuery->ForAdmin($user);
-            
-        }
+        // Get recent data using repositories
+        $recentOrders = $this->orderRepository->getRecent(5);
+        $recentProducts = $this->productRepository->getRecent(5);
         
-        // Total counts with city filtering applied
-        $totalOrders = $orderQuery->count();
-        $totalProducts = $productQuery->count();
-        $totalUsers = User::ForAdmin($user)->count(); // Not filtering users by city
-        $totalVendors = $vendorQuery->count();
-        $totalCategories = Category::count(); // Not filtering categories by city
+        // Get top products using repository
+        $topProducts = $this->productRepository->getTopRated(5);
         
-        // Revenue calculations with city filtering applied
-        $totalRevenue = clone $orderQuery;
-        $totalRevenue = $totalRevenue->where('status', '!=', 'cancelled')
-            ->sum('grand_total');
+        // Get orders by status using repository
+        $ordersByStatus = [
+            'pending' => $this->orderRepository->getCountByStatus('pending', $user),
+            'processing' => $this->orderRepository->getCountByStatus('processing', $user),
+            'completed' => $this->orderRepository->getCountByStatus('completed', $user),
+            'cancelled' => $this->orderRepository->getCountByStatus('cancelled', $user),
+        ];
         
-        $currentMonthRevenue = clone $orderQuery;
-        $currentMonthRevenue = $currentMonthRevenue->where('status', '!=', 'cancelled')
-            ->whereBetween('created_at', [$currentMonth, Carbon::now()])
-            ->sum('grand_total');
+        // Calculate revenue growth (keeping some direct calculations for complex logic)
+        $currentMonth = Carbon::now()->startOfMonth();
+        $previousMonth = Carbon::now()->subMonth()->startOfMonth();
         
-        $previousMonthRevenue = clone $orderQuery;
-        $previousMonthRevenue = $previousMonthRevenue->where('status', '!=', 'cancelled')
-            ->whereBetween('created_at', [$previousMonth, $currentMonth])
-            ->sum('grand_total');
+        $currentMonthRevenue = $this->orderRepository->getByDateRange(
+            $currentMonth->toDateString(), 
+            Carbon::now()->toDateString()
+        )->where('status', '!=', 'cancelled')->sum('grand_total');
         
-        // Calculate revenue growth percentage
+        $previousMonthRevenue = $this->orderRepository->getByDateRange(
+            $previousMonth->toDateString(), 
+            $currentMonth->toDateString()
+        )->where('status', '!=', 'cancelled')->sum('grand_total');
+        
         $revenueGrowth = 0;
         if ($previousMonthRevenue > 0) {
             $revenueGrowth = round((($currentMonthRevenue - $previousMonthRevenue) / $previousMonthRevenue) * 100, 1);
         }
         
-        // New items this month with city filtering applied
-        $newOrders = clone $orderQuery;
-        $newOrders = $newOrders->whereBetween('created_at', [$currentMonth, Carbon::now()])->count();
+        // Get new items this month
+        $newOrders = $this->orderRepository->getByDateRange(
+            $currentMonth->toDateString(), 
+            Carbon::now()->toDateString()
+        )->count();
         
-        $newProducts = clone $productQuery;
-        $newProducts = $newProducts->whereBetween('created_at', [$currentMonth, Carbon::now()])->count();
+        $newProducts = $this->productRepository->getByDateRange(
+            $currentMonth->toDateString(), 
+            Carbon::now()->toDateString()
+        )->count();
         
-        $newUsers = User::forAdmin($user)->whereBetween('created_at', [$currentMonth, Carbon::now()])->count();
+        $newUsers = $this->userRepository->getByRegistrationDateRange(
+            $currentMonth->toDateString(), 
+            Carbon::now()->toDateString()
+        )->count();
         
-        // Recent orders (last 5) with city filtering applied
-        $recentOrders = clone $orderQuery;
-        $recentOrders = $recentOrders->with(['user', 'items'])
-            ->latest()
-            ->take(5)
-            ->get();
-        
-        // Recent products (last 5) with city filtering applied
-        $recentProducts = clone $productQuery;
-        $recentProducts = $recentProducts->with(['vendor', 'image'])
-            ->latest()
-            ->take(5)
-            ->get();
-        
-        // Orders by status with city filtering applied
-        $ordersByStatus = [
-            'pending' => (clone $orderQuery)->where('status', 'pending')->count(),
-            'processing' => (clone $orderQuery)->where('status', 'processing')->count(),
-            'completed' => (clone $orderQuery)->where('status', 'completed')->count(),
-            'cancelled' => (clone $orderQuery)->where('status', 'cancelled')->count(),
-        ];
-        
-        // Top selling products (by order count) with city filtering applied
-        $topProducts = clone $productQuery;
-        $topProducts = $topProducts->withCount('orderItems')
-            ->orderBy('order_items_count', 'desc')
-            ->take(5)
-            ->get();
-        
-        // Monthly revenue data for charts (last 6 months) with city filtering applied
+        // Monthly revenue data for charts (last 6 months)
         $monthlyRevenue = collect();
         for ($i = 5; $i >= 0; $i--) {
             $month = Carbon::now()->subMonths($i);
-            $revenue = (clone $orderQuery)->where('status', '!=', 'cancelled')
-                ->whereYear('created_at', $month->year)
-                ->whereMonth('created_at', $month->month)
+            $monthStart = $month->startOfMonth()->toDateString();
+            $monthEnd = $month->endOfMonth()->toDateString();
+            
+            $revenue = $this->orderRepository->getByDateRange($monthStart, $monthEnd)
+                ->where('status', '!=', 'cancelled')
                 ->sum('grand_total');
             
             $monthlyRevenue->push([
@@ -179,13 +171,14 @@ class AdminController extends Controller
             ]);
         }
         
-        // Orders by month for charts (last 6 months) with city filtering applied
+        // Orders by month for charts (last 6 months)
         $monthlyOrders = collect();
         for ($i = 5; $i >= 0; $i--) {
             $month = Carbon::now()->subMonths($i);
-            $orders = (clone $orderQuery)->whereYear('created_at', $month->year)
-                ->whereMonth('created_at', $month->month)
-                ->count();
+            $monthStart = $month->startOfMonth()->toDateString();
+            $monthEnd = $month->endOfMonth()->toDateString();
+            
+            $orders = $this->orderRepository->getByDateRange($monthStart, $monthEnd)->count();
             
             $monthlyOrders->push([
                 'month' => $month->format('M Y'),
@@ -193,13 +186,23 @@ class AdminController extends Controller
             ]);
         }
         
+        // Total categories (keeping direct access as no repository exists)
+        $totalCategories = Category::count();
+        
+        // Extract individual statistics for blade template
+        $totalOrders = $orderStats['total_orders'];
+        $totalProducts = $productStats['total_products'];
+        $totalUsers = $userStats['total_users'];
+        
+        // Calculate total revenue from non-cancelled orders using repository
+        $totalRevenue = $this->orderRepository->getTotalRevenue($user);
+        
         return view('admin.dashboard', compact(
-            'totalOrders',
-            'totalProducts', 
-            'totalUsers',
-            'totalVendors',
+            'orderStats',
+            'productStats', 
+            'userStats',
+            'vendorStats',
             'totalCategories',
-            'totalRevenue',
             'revenueGrowth',
             'newOrders',
             'newProducts',
@@ -209,7 +212,11 @@ class AdminController extends Controller
             'ordersByStatus',
             'topProducts',
             'monthlyRevenue',
-            'monthlyOrders'
+            'monthlyOrders',
+            'totalOrders',
+            'totalProducts',
+            'totalUsers',
+            'totalRevenue'
         ));
     }
 }

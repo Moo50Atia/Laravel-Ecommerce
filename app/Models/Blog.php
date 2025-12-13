@@ -22,6 +22,26 @@ class Blog extends Model
         "is_published",
         "published_at",
     ];
+
+    // Mutators
+    public function setTitleAttribute($value)
+    {
+        $this->attributes['title'] = trim(ucwords(strtolower($value)));
+        // Auto-generate slug if not provided
+        if (empty($this->attributes['slug'])) {
+            $this->attributes['slug'] = \Illuminate\Support\Str::slug($value);
+        }
+    }
+
+    public function setSlugAttribute($value)
+    {
+        $this->attributes['slug'] = \Illuminate\Support\Str::slug($value);
+    }
+
+    public function setContentAttribute($value)
+    {
+        $this->attributes['content'] = trim($value);
+    }
     protected $casts = [
         "created_at"=> "datetime",
         "published_at"=> "datetime",

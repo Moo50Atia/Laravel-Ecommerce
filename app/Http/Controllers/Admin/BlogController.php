@@ -7,85 +7,69 @@ use App\Models\Blog;
 use App\Models\Image;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\CreateBlogRequest;
+use App\Models\User;
+use App\Repositories\Contracts\BlogRepositoryInterface;
+use App\Repositories\Contracts\UserRepositoryInterface;
 
 class BlogController extends Controller
 {
+    protected $blogRepository;
+    protected $userRepository;
+
+    public function __construct(
+        BlogRepositoryInterface $blogRepository,
+        UserRepositoryInterface $userRepository
+    ) {
+        $this->blogRepository = $blogRepository;
+        $this->userRepository = $userRepository;
+    }
     public function index(Request $request)
     {
         $user = Auth::user();
-        $query = Blog::with(['author', 'reviews'])->ForAdmin($user);
+        
+        // Use repository for blog filtering and pagination
+        $blogs = $this->blogRepository->getForAdmin($user, [
+            'search' => $request->get('search'),
+            'status' => $request->get('status'),
+            'author' => $request->get('author'),
+            'date_from' => $request->get('date_from'),
+            'date_to' => $request->get('date_to'),
+            'per_page' => 15
+        ]);
 
-        // Search filter
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where('title', 'like', "%{$search}%");
-        }
+        // Get statistics using repository
+        $statistics = $this->blogRepository->getAdminStatistics($user);
 
-        // Status filter
-        if ($request->filled('status')) {
-            $status = $request->get('status');
-            if ($status === 'published') {
-                $query->where('is_published', true);
-            } elseif ($status === 'draft') {
-                $query->where('is_published', false);
-            }
-        }
-
-        // Author filter
-        if ($request->filled('author')) {
-            $author = $request->get('author');
-            $query->whereHas('author', function($q) use ($author) {
-                $q->where('name', 'like', "%{$author}%");
-            });
-        }
-
-        $blogs = $query->latest()->paginate(15)->withQueryString();
-
-        // Get all unique authors for the filter dropdown (filtered by admin's city)
-        $authors = Blog::with('author')
-            ->ForAdmin($user)
-            ->whereHas('author')
-            ->get()
-            ->pluck('author.name')
+        // Get authors for filter dropdown using repository
+        $authors = $this->blogRepository->getAuthorsForAdmin($user)
+            ->pluck('name')
             ->unique()
             ->filter()
             ->values();
 
-        // Get statistics for all blogs (filtered by admin's city)
-        $allBlogs = Blog::query()->ForAdmin($user);
-        $totalBlogs = $allBlogs->count();
-        $publishedBlogs = (clone $allBlogs)->where('is_published', true)->count();
-        $draftBlogs = (clone $allBlogs)->where('is_published', false)->count();
-        $totalReviews = (clone $allBlogs)->with('reviews')->get()->sum(function($blog) { 
-            return $blog->reviews->count(); 
-        });
-
-        return view('admin.manage-blog', compact('blogs', 'authors', 'totalBlogs', 'publishedBlogs', 'draftBlogs', 'totalReviews'));
+        return view('admin.manage-blog', compact('blogs', 'authors', 'statistics'));
     }
 
     public function create()
     {
-        return view('admin.blogs.create');
+        // Get authors using repository
+        $authors = $this->userRepository->getByRole('admin')
+            ->merge($this->userRepository->getByRole('vendor'));
+        
+        return view('admin.blogs.create', compact('authors'));
     }
 
-    public function store(Request $request)
+    public function store(CreateBlogRequest $request)
     {
         $user = Auth::user();
         
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'short_description' => 'nullable|string|max:500',
-            'content' => 'required|string',
-            'author_id' => 'nullable',
-            'is_published' => 'boolean',
-            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
-
-        $blog = Blog::create([
+        // Use repository to create blog
+        $blog = $this->blogRepository->create([
             'title' => $request->get('title'),
             'short_description' => $request->get('short_description'),
             'content' => $request->get('content'),
-            'author_id' => $request->get('author_id') ?: $user->id, // Use current user as author if not specified
+            'author_id' => $request->get('author_id') ?: $user->id,
             'is_published' => $request->has('is_published'),
             'published_at' => $request->has('is_published') ? now() : null,
         ]);
@@ -131,30 +115,22 @@ class BlogController extends Controller
         return view('public.blogs.edit', compact('blog'));
     }
 
-    public function update(Request $request, Blog $blog)
+    public function update(CreateBlogRequest $request, Blog $blog)
     {
         // Check if the blog is accessible to the current admin
         $user = Auth::user();
-        $accessibleBlog = Blog::where('id', $blog->id)->ForAdmin($user)->first();
+        $accessibleBlog = $this->blogRepository->find($blog->id);
         
         if (!$accessibleBlog && $user->role === 'admin') {
             abort(403, 'Unauthorized access');
         }
         
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'short_description' => 'nullable|string|max:500',
-            'content' => 'required|string',
-            'author_id' => 'nullable|exists:users,id',
-            'is_published' => 'boolean',
-            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
-
-        $blog->update([
+        // Use repository to update blog
+        $this->blogRepository->update($blog->id, [
             'title' => $request->get('title'),
             'short_description' => $request->get('short_description'),
             'content' => $request->get('content'),
-            'author_id' => $request->get('author_id') ?: $user->id, // Use current user as author if not specified
+            'author_id' => $request->get('author_id') ?: $user->id,
             'is_published' => $request->has('is_published'),
             'published_at' => $request->has('is_published') ? now() : null,
         ]);
@@ -183,13 +159,14 @@ class BlogController extends Controller
     {
         // Check if the blog is accessible to the current admin
         $user = Auth::user();
-        $accessibleBlog = Blog::where('id', $blog->id)->ForAdmin($user)->first();
+        $accessibleBlog = $this->blogRepository->find($blog->id);
         
         if (!$accessibleBlog && $user->role === 'admin') {
             abort(403, 'Unauthorized access');
         }
         
-        $blog->delete();
+        // Use repository to delete blog
+        $this->blogRepository->delete($blog->id);
         return redirect()->route('admin.blogs.index')->with('success', 'تم حذف المدونة بنجاح');
     }
 }

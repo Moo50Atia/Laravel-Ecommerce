@@ -52,6 +52,27 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    // Mutators
+    public function setNameAttribute($value)
+    {
+        $this->attributes['name'] = trim(ucwords(strtolower($value)));
+    }
+
+    public function setPhoneAttribute($value)
+    {
+        // Remove all non-numeric characters except +
+        $this->attributes['phone'] = preg_replace('/[^0-9+]/', '', $value);
+    }
+
+    public function setAvatarAttribute($value)
+    {
+        if (empty($value)) {
+            $this->attributes['avatar'] = 'default-avatar.png';
+        } else {
+            $this->attributes['avatar'] = $value;
+        }
+    }
     public function addresses()
 {
     return $this->hasOne(UserAddress::class);

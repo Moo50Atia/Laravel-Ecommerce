@@ -34,7 +34,9 @@
         </tbody>
     </table>
 </div> --}}
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
 
 <div class="max-w-7xl mx-auto p-4">
     <!-- Header -->
@@ -104,4 +106,4 @@
         </table>
     </div>
 </div>
-</x-app-layout>
+@endsection

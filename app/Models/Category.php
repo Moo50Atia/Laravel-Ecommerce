@@ -17,6 +17,21 @@ class Category extends Model
         "image",
     ];
 
+    // Mutators
+    public function setNameAttribute($value)
+    {
+        $this->attributes['name'] = trim(ucwords(strtolower($value)));
+        // Auto-generate slug if not provided
+        if (empty($this->attributes['slug'])) {
+            $this->attributes['slug'] = \Illuminate\Support\Str::slug($value);
+        }
+    }
+
+    public function setSlugAttribute($value)
+    {
+        $this->attributes['slug'] = \Illuminate\Support\Str::slug($value);
+    }
+
     public function parent()
 {
     return $this->belongsTo(Category::class, 'parent_id');

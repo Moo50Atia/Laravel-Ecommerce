@@ -1,18 +1,20 @@
-<x-app-layout>
-    <x-slot name="style">
-        <style>
-            .form-container { @apply bg-white rounded-lg shadow-md p-6; }
-            .form-group { @apply mb-6; }
-            .form-label { @apply block text-sm font-medium text-gray-700 mb-2; }
-            .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent; }
-            .form-textarea { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent h-32; }
-            .form-select { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent; }
-            .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md transition-colors duration-200; }
-            .btn-secondary { @apply bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-md transition-colors duration-200; }
-        </style>
-    </x-slot>
+@extends('layouts.app')
 
-    <div class="container mx-auto px-4 py-8">
+@section('style')
+<style>
+    .form-container { @apply bg-white rounded-lg shadow-md p-6; }
+    .form-group { @apply mb-6; }
+    .form-label { @apply block text-sm font-medium text-gray-700 mb-2; }
+    .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent; }
+    .form-textarea { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent h-32; }
+    .form-select { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent; }
+    .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md transition-colors duration-200; }
+    .btn-secondary { @apply bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-md transition-colors duration-200; }
+</style>
+@endsection
+
+@section('content')
+<div class="container mx-auto px-4 py-8">
         <!-- Header -->
         <div class="mb-8">
             <div class="flex items-center justify-between">
@@ -77,7 +79,7 @@
                                 class="form-select @error('author_id') border-red-500 @enderror" 
                                 required>
                             <option value="">اختر المؤلف</option>
-                            @foreach(\App\Models\User::where('role', 'admin')->orWhere('role', 'vendor')->get() as $user)
+                            @foreach($authors as $user)
                                 <option value="{{ $user->id }}" {{ old('author_id') == $user->id ? 'selected' : '' }}>
                                     {{ $user->name }}
                                 </option>
@@ -129,4 +131,4 @@
             </form>
         </div>
     </div>
-</x-app-layout>
+@endsection

@@ -1,4 +1,6 @@
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
 {{-- all_products
 all_orders
 current_orders
@@ -60,4 +62,4 @@ canceld_oders --}}
   </div>
 </div>
 
-</x-app-layout>
+@endsection

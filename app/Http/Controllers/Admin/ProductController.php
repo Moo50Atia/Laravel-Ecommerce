@@ -6,95 +6,62 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Vendor;
-USE Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Product;
+use App\Http\Requests\CreateProductRequest;
+use App\Services\ImageUploadService;
+use App\Services\SearchFilterService;
+use App\Repositories\Contracts\ProductRepositoryInterface;
+use App\Repositories\Contracts\VendorRepositoryInterface;
 
 
 class ProductController extends Controller
 {
+    protected $imageUploadService;
+    protected $searchFilterService;
+    protected $productRepository;
+    protected $vendorRepository;
+
+    public function __construct(
+        ImageUploadService $imageUploadService, 
+        SearchFilterService $searchFilterService,
+        ProductRepositoryInterface $productRepository,
+        VendorRepositoryInterface $vendorRepository
+    ) {
+        $this->imageUploadService = $imageUploadService;
+        $this->searchFilterService = $searchFilterService;
+        $this->productRepository = $productRepository;
+        $this->vendorRepository = $vendorRepository;
+    }
     public function index(Request $request)
     {
-        
         $user = Auth::user();
-        $query = Product::with(['vendor', 'category', 'variants']);
-        $query = $query->ForAdmin(  $user);
-
-
-
-        // Search filter
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhereHas('vendor', function($vendorQuery) use ($search) {
-                      $vendorQuery->where('name', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        // Category filter
-        if ($request->filled('category')) {
-            $category = $request->get('category');
-            $query->whereHas('category', function($q) use ($category) {
-                $q->where('name', 'like', "%{$category}%");
-            });
-        }
-
-        // Vendor filter
-        if ($request->filled('vendor')) {
-            $vendor = $request->get('vendor');
-            $query->whereHas('vendor', function($q) use ($vendor) {
-                $q->where('name', 'like', "%{$vendor}%");
-            });
-        }
-
-        // Status filter
-        if ($request->filled('status')) {
-            $status = $request->get('status');
-            if ($status === 'active') {
-                $query->where('is_active', true);
-            } elseif ($status === 'inactive') {
-                $query->where('is_active', false);
-            }
-        }
-
-        $products = $query->latest()->paginate(15)->withQueryString();
-
-        // Get statistics for all products (not just current page)
         
-        $allProducts = Product::ForAdmin($user)->get();
-        $totalProducts = $allProducts->count();
-        $activeProducts = $allProducts->where('is_active', true)->count();
-        $inactiveProducts = $allProducts->where('is_active', false)->count();
-        $totalVariants = $allProducts->sum(function($product) {
-            return $product->variants->count();
-        });
+        // Use repository for product filtering and pagination
+        $products = $this->productRepository->getForAdmin($user, [
+            'search' => $request->get('search'),
+            'category_id' => $request->get('category_id'),
+            'vendor_id' => $request->get('vendor_id'),
+            'is_active' => $request->get('is_active'),
+            'min_price' => $request->get('min_price'),
+            'max_price' => $request->get('max_price'),
+            'sort_by' => $request->get('sort_by'),
+            'per_page' => 15
+        ]);
 
-        // Get unique values for filter dropdowns
-        // $categories = Product::with('category')
-        //     ->whereHas('category')
-        //     ->get()
-        //     ->pluck('category.name')
-        //     ->unique()
-        //     ->filter()
-        //     ->values();
+        // Get statistics using repository
+        $statistics = $this->productRepository->getAdminStatistics($user);
 
-        $vendors = Product::with('vendor')
-            ->whereHas('vendor')
-            ->get()
-            ->pluck('vendor.name')
+        // Get vendors for filter dropdown using repository
+        $vendors = $this->vendorRepository->getWithUser()
+            ->pluck('user.name')
             ->unique()
             ->filter()
             ->values();
  
         return view('admin.manage-products', compact(
             'products',
-            'totalProducts',
-            'activeProducts',
-            'inactiveProducts',
-            'totalVariants',
-           
+            'statistics',
             'vendors'
         ));
     }
@@ -104,18 +71,10 @@ class ProductController extends Controller
         return view('admin.products.create');
     }
 
-    public function store(Request $request)
+    public function store(CreateProductRequest $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'vendor_id' => 'nullable|exists:vendors,id',
-            'is_active' => 'boolean',
-            'short_description' => 'nullable|string',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
-
-        $product = Product::create([
+        // Use repository to create product
+        $product = $this->productRepository->create([
             'name' => $request->get('name'),
             'description' => $request->get('description'),
             'vendor_id' => $request->get('vendor_id'),
@@ -123,18 +82,9 @@ class ProductController extends Controller
             'short_description' => $request->get('short_description'),
         ]);
 
-        // Handle image uploads
+        // Handle image uploads using service
         if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $imagePath = $image->store('product-images', 'public');
-                
-                \App\Models\Image::create([
-                    'url' => $imagePath,
-                    'type' => 'product',
-                    'imageable_type' => Product::class,
-                    'imageable_id' => $product->id
-                ]);
-            }
+            $this->imageUploadService->uploadMultipleImages($request->file('images'), $product, 'product');
         }
 
         return redirect()->route('admin.products.index')->with('success', 'تم إنشاء المنتج بنجاح');
@@ -147,26 +97,16 @@ class ProductController extends Controller
 
     public function edit(Product $product)
     { 
-        $vendors1 = Vendor::all();
+        // Get vendors using repository
+        $vendors1 = $this->vendorRepository->all();
         
         return view('public.products.edit', compact('product' ,"vendors1"));
     }
 
-    public function update(Request $request, Product $product)
+    public function update(CreateProductRequest $request, Product $product)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:categories,id',
-            'vendor_id' => 'nullable|exists:vendors,id',
-            'is_active' => 'boolean',
-            'sku' => 'nullable|string|max:100|unique:products,sku,' . $product->id,
-            'meta_title' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
-
-        $product->update([
+        // Use repository to update product
+        $this->productRepository->update($product->id, [
             'name' => $request->get('name'),
             'description' => $request->get('description'),
             'category_id' => $request->get('category_id'),
@@ -177,18 +117,9 @@ class ProductController extends Controller
             'meta_description' => $request->get('meta_description'),
         ]);
 
-        // Handle image uploads
+        // Handle image uploads using service
         if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $imagePath = $image->store('product-images', 'public');
-                
-                \App\Models\Image::create([
-                    'url' => $imagePath,
-                    'type' => 'product',
-                    'imageable_type' => Product::class,
-                    'imageable_id' => $product->id
-                ]);
-            }
+            $this->imageUploadService->uploadMultipleImages($request->file('images'), $product, 'product');
         }
 
         return redirect()->route('admin.products.show', $product)->with('success', 'تم تحديث المنتج بنجاح');
@@ -207,7 +138,8 @@ class ProductController extends Controller
             }
         }
 
-        $product->delete();
+        // Use repository to delete product
+        $this->productRepository->delete($product->id);
         return redirect()->route('admin.products.index')->with('success', 'تم حذف المنتج بنجاح');
     }
 }

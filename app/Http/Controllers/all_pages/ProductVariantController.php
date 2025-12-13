@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\all_pages;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Http\Requests\ProductVariantRequest;
 use App\Models\Product; 
 use App\Models\ProductVariant;
 
@@ -17,13 +18,9 @@ return view("public.products.creat_product_variant" , compact("product" , "categ
 }
 
     // store
-    public function store (Request $request) {  
+    public function store (ProductVariantRequest $request) {  
     
-    $validated = $request->validate([
-    
-        'product_id' => ['required', 'exists:products,id'],
-        'variants_json' => ['required', 'string']
-    ]);
+    $validated = $request->validated();
 
     $variants = json_decode($validated['variants_json'], true);
 
@@ -63,7 +60,7 @@ return view("public.products.creat_product_variant" , compact("product" , "categ
         }
         }
     // update 
-    public function update (Request $request, $id) {
+    public function update (ProductVariantRequest $request, $id) {
             $data = $request->input('variants', []);
 
             if (empty($data)) {

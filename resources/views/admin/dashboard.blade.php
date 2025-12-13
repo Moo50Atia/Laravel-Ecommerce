@@ -1,23 +1,25 @@
-<x-app-layout>
-    <x-slot name="style">
-        <style>
-            .stat-card { @apply bg-white rounded-lg shadow-md p-6 border-l-4; }
-            .stat-card.orders { @apply border-l-blue-500; }
-            .stat-card.products { @apply border-l-green-500; }
-            .stat-card.users { @apply border-l-purple-500; }
-            .stat-card.revenue { @apply border-l-yellow-500; }
-            .stat-number { @apply text-3xl font-bold text-gray-800; }
-            .stat-label { @apply text-sm font-medium text-gray-600; }
-            .stat-change { @apply text-sm font-medium; }
-            .stat-change.positive { @apply text-green-600; }
-            .stat-change.negative { @apply text-red-600; }
-            .chart-container { @apply bg-white rounded-lg shadow-md p-6; }
-            .quick-action { @apply bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer; }
-            .recent-item { @apply flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0; }
-        </style>
-    </x-slot>
+@extends('layouts.app')
 
-    <div class="container mx-auto px-4 py-8">
+@section('style')
+<style>
+    .stat-card { @apply bg-white rounded-lg shadow-md p-6 border-l-4; }
+    .stat-card.orders { @apply border-l-blue-500; }
+    .stat-card.products { @apply border-l-green-500; }
+    .stat-card.users { @apply border-l-purple-500; }
+    .stat-card.revenue { @apply border-l-yellow-500; }
+    .stat-number { @apply text-3xl font-bold text-gray-800; }
+    .stat-label { @apply text-sm font-medium text-gray-600; }
+    .stat-change { @apply text-sm font-medium; }
+    .stat-change.positive { @apply text-green-600; }
+    .stat-change.negative { @apply text-red-600; }
+    .chart-container { @apply bg-white rounded-lg shadow-md p-6; }
+    .quick-action { @apply bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer; }
+    .recent-item { @apply flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0; }
+</style>
+@endsection
+
+@section('content')
+<div class="container mx-auto px-4 py-8">
         <!-- Header -->
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900">لوحة التحكم</h1>
@@ -320,104 +322,104 @@
             </div>
         </div>
     </div>
+@endsection
 
-    <x-slot name="script">
-        <!-- Chart.js CDN -->
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        
-        <script>
-            // Auto-refresh dashboard every 5 minutes
-            setInterval(function() {
-                location.reload();
-            }, 300000);
+@section('script')
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-            // Add click animations to quick actions
-            document.querySelectorAll('.quick-action').forEach(action => {
-                action.addEventListener('click', function() {
-                    this.style.transform = 'scale(0.95)';
-                    setTimeout(() => {
-                        this.style.transform = 'scale(1)';
-                    }, 150);
-                });
+<script>
+    // Auto-refresh dashboard every 5 minutes
+    setInterval(function() {
+        location.reload();
+    }, 300000);
+
+    // Add click animations to quick actions
+    document.querySelectorAll('.quick-action').forEach(action => {
+        action.addEventListener('click', function() {
+            this.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                this.style.transform = 'scale(1)';
+            }, 150);
+        });
+    });
+
+    // Chart.js Charts
+    document.addEventListener('DOMContentLoaded', function() {
+        // Orders Chart
+        const ordersCtx = document.getElementById('ordersChart');
+        if (ordersCtx) {
+            new Chart(ordersCtx, {
+                type: 'line',
+                data: {
+                    labels: {!! json_encode($monthlyOrders->pluck('month')) !!},
+                    datasets: [{
+                        label: 'عدد الطلبات',
+                        data: {!! json_encode($monthlyOrders->pluck('orders')) !!},
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
             });
+        }
 
-            // Chart.js Charts
-            document.addEventListener('DOMContentLoaded', function() {
-                // Orders Chart
-                const ordersCtx = document.getElementById('ordersChart');
-                if (ordersCtx) {
-                    new Chart(ordersCtx, {
-                        type: 'line',
-                        data: {
-                            labels: {!! json_encode($monthlyOrders->pluck('month')) !!},
-                            datasets: [{
-                                label: 'عدد الطلبات',
-                                data: {!! json_encode($monthlyOrders->pluck('orders')) !!},
-                                borderColor: 'rgb(59, 130, 246)',
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            aspectRatio: 2,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        stepSize: 1
-                                    }
+        // Revenue Chart
+        const revenueCtx = document.getElementById('revenueChart');
+        if (revenueCtx) {
+            new Chart(revenueCtx, {
+                type: 'bar',
+                data: {
+                    labels: {!! json_encode($monthlyRevenue->pluck('month')) !!},
+                    datasets: [{
+                        label: 'الإيرادات ($)',
+                        data: {!! json_encode($monthlyRevenue->pluck('revenue')) !!},
+                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                        borderColor: 'rgb(34, 197, 94)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
                                 }
                             }
                         }
-                    });
-                }
-
-                // Revenue Chart
-                const revenueCtx = document.getElementById('revenueChart');
-                if (revenueCtx) {
-                    new Chart(revenueCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: {!! json_encode($monthlyRevenue->pluck('month')) !!},
-                            datasets: [{
-                                label: 'الإيرادات ($)',
-                                data: {!! json_encode($monthlyRevenue->pluck('revenue')) !!},
-                                backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                                borderColor: 'rgb(34, 197, 94)',
-                                borderWidth: 1
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            aspectRatio: 2,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        callback: function(value) {
-                                            return '$' + value.toLocaleString();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
+                    }
                 }
             });
-        </script>
-    </x-slot>
-</x-app-layout>
+        }
+    });
+</script>
+@endsection

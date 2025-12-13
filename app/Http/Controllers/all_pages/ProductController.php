@@ -4,15 +4,29 @@ namespace App\Http\Controllers\all_pages;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductRequest;
+use App\Http\Requests\ProductReviewRequest;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ProductVariant;
+use App\Services\ImageUploadService;
+use App\Services\ReviewManagementService;
+use Illuminate\Http\RedirectResponse;
+
 
 
 class ProductController extends Controller
 {
+    protected $imageUploadService;
+    protected $reviewManagementService;
+
+    public function __construct(ImageUploadService $imageUploadService, ReviewManagementService $reviewManagementService)
+    {
+        $this->imageUploadService = $imageUploadService;
+        $this->reviewManagementService = $reviewManagementService;
+    }
     public function index(): \Illuminate\Contracts\View\View
     {
         $products = Product::latest()->paginate(10);
@@ -25,7 +39,7 @@ class ProductController extends Controller
         return view('public.products.create');
     }
 
-    public function store(ProductRequest $request): \Illuminate\Http\RedirectResponse
+    public function store(ProductRequest $request): RedirectResponse
     { 
         // dd(Auth::user()->vendor->id);
             $data = $request->validated();
@@ -54,24 +68,16 @@ class ProductController extends Controller
             }
 
         $product = Product::create($data);
-     if ($request->hasFile('image')) {
-        $path = $request->file('image')->store('products', 'public');
-
-        // 3. أنشئ image مربوطة بالمقال
-        $product->image()->create([
-            'url' => $path,
-            'type' => 'card',
-        ]);
-    }
-           if ($request->hasFile('additional_images')) {
-    foreach ($request->file('additional_images') as $img) {
-        $path = $img->store('product', 'public');
-        $product->images()->create([
-            'url' => $path,
-             'type' => 'detail',
-        ]);
-    }
-}
+        
+        // Handle main image upload
+        if ($request->hasFile('image')) {
+            $this->imageUploadService->uploadSingleImage($request->file('image'), $product, 'card');
+        }
+        
+        // Handle additional images upload
+        if ($request->hasFile('additional_images')) {
+            $this->imageUploadService->uploadMultipleImages($request->file('additional_images'), $product, 'detail');
+        }
 
         return redirect()->route("vendor.variant.create" , parameters: ['product' => $product,'category' => $request->input("category")])->with('success', 'Created successfully');
     }
@@ -83,7 +89,7 @@ class ProductController extends Controller
         ->take(4) // عدد المنتجات اللي هتعرضها
         ->get();
         $totalStock = $product->variants()->sum('stock');
-        $product = Product::with('vendor.user', 'variants')->findOrFail($product->id);
+        $product = Product::with('vendor.user', 'variants', 'productReviews.user')->findOrFail($product->id);
 
 
         return view('public.products.show', compact('product' , "totalStock" , "similarProducts"));
@@ -127,18 +133,7 @@ public function update(ProductRequest $request, Product $product): \Illuminate\H
 
     // 2. تحديث الصورة إذا تم رفع واحدة جديدة
     if ($request->hasFile('image')) {
-        $path = $request->file('image')->store('products', 'public');
-
-        if ($product->image) {
-            // تحديث الصورة القديمة
-            $product->image->update(['url' => $path]);
-        } else {
-            // إنشاء صورة جديدة كـ card
-            $product->image()->create([
-                'url' => $path,
-                'type' => 'card'
-            ]);
-        }
+        $this->imageUploadService->updateOrCreateImage($request->file('image'), $product, 'card');
     }
     if ($request->input('variant_ids') && $request->input('variant_ids') != null){
     // 3. الحصول على الـ variants المختارة
@@ -199,5 +194,16 @@ public function search(Request $request)
             $products = $query->paginate(10);
 
     return view("public.products.search_products", compact("products"));
+}
+
+public function storeReview(ProductReviewRequest $request, Product $product): \Illuminate\Http\RedirectResponse
+{
+    $result = $this->reviewManagementService->createProductReview($request, $product);
+    
+    if ($result['success']) {
+        return back()->with('success', $result['message']);
+    } else {
+        return back()->with('error', $result['message']);
+    }
 }
 }

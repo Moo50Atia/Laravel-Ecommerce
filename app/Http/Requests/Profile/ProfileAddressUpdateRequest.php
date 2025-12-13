@@ -26,4 +26,27 @@ class ProfileAddressUpdateRequest extends FormRequest
     ];
 }
 
+    public function messages(): array
+    {
+        return [
+            'address_line1.required' => 'العنوان مطلوب',
+            'city.required' => 'المدينة مطلوبة',
+            'state.required' => 'المحافظة مطلوبة',
+            'country.required' => 'الدولة مطلوبة',
+            'postal_code.required' => 'الرمز البريدي مطلوب',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'address_line1' => 'العنوان الأول',
+            'address_line2' => 'العنوان الثاني',
+            'city' => 'المدينة',
+            'state' => 'المحافظة',
+            'country' => 'الدولة',
+            'postal_code' => 'الرمز البريدي',
+        ];
+    }
+
 }

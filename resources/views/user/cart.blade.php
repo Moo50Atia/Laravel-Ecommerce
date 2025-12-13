@@ -1,69 +1,20 @@
-<x-app-layout>
-  <x-slot name="style">
+@extends('layouts.app')
+
+@section('style')
+<style>
+      .cart-item img { @apply w-24 h-24 object-cover rounded; }
+    </style>
+@endsection
+
+@section('content')
+@section('style')
     <style>
       .cart-item img { @apply w-24 h-24 object-cover rounded; }
     </style>
-  </x-slot>
-@if(session("error"))
-<div class="alert alert-danger">
-  {{session("error")}}
-</div>
-@endif
-  <div class="container mx-auto px-4 py-8" data-aos="fade-up">
-    <h1 class="text-3xl font-bold mb-6">سلة المشتريات</h1>
+@endsection
 
-    <div class="bg-white rounded-lg shadow-md p-6 space-y-6">
-      <!-- Main form for updating cart -->
-      <form action="{{route("user.update_cart", $order->id) }}" method="post" id="cartForm">
-        @csrf
-        @method("PUT")
-        
-        <!-- عنصر في السلة -->
-        @foreach ( $order->items as $item )
-          
-        
-        <div class="flex items-center justify-between cart-item" data-aos="fade-up" data-aos-delay="100">
-          <div class="flex items-center gap-4">
-            <img src="{{asset("storage" . $item->product->image->url)}}" alt="منتج">
-            <div>
-              <h2 class="font-semibold text-lg">{{$item->product->name}}</h2>
-              <p class="text-gray-600 price" data-price="{{$item->price}}" id="price-{{$item->id}}">the price : {{$item->price}}</p>
-              <p class="text-sm text-gray-500"> quantity 
-                <input type="number" name="items[{{$item->id}}][quantity]" 
-       value="{{$item->quantity}}" min="1" 
-       class="quantity-input border p-1 w-16 text-center rounded" />
-<input type="hidden" name="items[{{$item->id}}][price]" value="{{$item->price}}" />
-              </p>
-            </div>
-          </div>
-          
-          <!-- Delete button - separate from main form -->
-          <button type="button" 
-                  onclick="deleteItem({{$item->id}})" 
-                  class="text-red-500 hover:underline">
-            إزالة
-          </button>
-        </div>
-          @endforeach
-       
- 
-        <!-- الإجمالي -->
-        <div class="text-right border-t pt-4">
-          <p class="text-lg font-bold">the total is :<span id="total" name="total" class="text-blue-600"></span></p>
-          <button type="submit" class="mt-4 inline-block bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600">متابعة الدفع</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Hidden form for deleting items -->
-  <form id="deleteForm" method="post" style="display: none;">
-    @csrf
-    @method("DELETE")
-  </form>
-
-  <x-slot name="script">
-    <script>AOS.init();</script>
+@section('script')
+<script>AOS.init();</script>
     
     <script>
       // Function to delete cart items
@@ -125,6 +76,4 @@
         });
       });
     </script>
-
-  </x-slot>
-</x-app-layout>
+@endsection

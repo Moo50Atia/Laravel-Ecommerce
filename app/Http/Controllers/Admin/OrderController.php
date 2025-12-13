@@ -5,66 +5,52 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Illuminate\Http\Request;
+use App\Http\Requests\Admin\UpdateOrderRequest;
 use Illuminate\Support\Facades\Auth;
+use App\Services\SearchFilterService;
+use App\Repositories\Contracts\OrderRepositoryInterface;
+use App\Enums\OrderStatus;
 
 class OrderController extends Controller
 {
+    protected $searchFilterService;
+    protected $orderRepository;
+
+    public function __construct(
+        SearchFilterService $searchFilterService,
+        OrderRepositoryInterface $orderRepository
+    ) {
+        $this->searchFilterService = $searchFilterService;
+        $this->orderRepository = $orderRepository;
+    }
     public function index(Request $request)
     {
         $user = Auth::user();
-        $query = Order::with(['user', 'vendor', 'items.product'])->ForAdmin($user);
-
-        // Search filter
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function($q) use ($search) {
-                $q->where('order_number', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQuery) use ($search) {
-                      $userQuery->where('name', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        // Status filter
-        if ($request->filled('status')) {
-            $status = $request->get('status');
-            $query->where('status', $status);
-        }
-
-        // Payment method filter
-        if ($request->filled('payment_method')) {
-            $paymentMethod = $request->get('payment_method');
-            $query->where('payment_method', $paymentMethod);
-        }
-
-        // Payment status filter
-        if ($request->filled('payment_status')) {
-            $paymentStatus = $request->get('payment_status');
-            $query->where('payment_status', $paymentStatus);
-        }
-
-        $orders = $query->latest()->paginate(15)->withQueryString();
-
-        // Get statistics for all orders (not just current page)
         
-        $allOrders = Order::ForAdmin($user)->get();
-        $allOrdersCount = $allOrders->count();
-        $totalSails = number_format($allOrders->sum('grand_total'), 2);
-        $pendingOrders = $allOrders->where('status', 'pending')->count();
-        $CompletedOrders = $allOrders->where('status', 'delivered')->count();
+        // Use repository for order filtering and pagination
+        $orders = $this->orderRepository->getForAdmin($user, [
+            'search' => $request->get('search'),
+            'status' => $request->get('status'),
+            'payment_status' => $request->get('payment_status'),
+            'payment_method' => $request->get('payment_method'),
+            'date_from' => $request->get('date_from'),
+            'date_to' => $request->get('date_to'),
+            'min_amount' => $request->get('min_amount'),
+            'max_amount' => $request->get('max_amount'),
+            'per_page' => 15
+        ]);
 
-        // Get unique values for filter dropdowns
-        $statuses = Order::ForAdmin($user)->distinct()->pluck('status')->filter()->values();
-        $paymentMethods = Order::ForAdmin($user)->distinct()->pluck('payment_method')->filter()->values();
-        $paymentStatuses = Order::ForAdmin($user)->distinct()->pluck('payment_status')->filter()->values();
+        // Get statistics using repository
+        $statistics = $this->orderRepository->getAdminStatistics($user);
+
+        // Get filter options using repository
+        $statuses = $this->orderRepository->getStatusesForAdmin($user);
+        $paymentMethods = $this->orderRepository->getPaymentMethodsForAdmin($user);
+        $paymentStatuses = $this->orderRepository->getPaymentStatusesForAdmin($user);
 
         return view('admin.manage-orders', compact(
             'orders', 
-            'allOrders', 
-            'allOrdersCount', 
-            'totalSails', 
-            'pendingOrders', 
-            'CompletedOrders',
+            'statistics',
             'statuses',
             'paymentMethods',
             'paymentStatuses'
@@ -80,21 +66,12 @@ class OrderController extends Controller
     public function edit(Order $order)
     {
         $order->load(['user', 'items.product']);
-        return view('admin.orders.edit', compact('order'));
+        $cases = OrderStatus::cases();
+        return view('admin.orders.edit', compact('order', 'cases'));
     }
 
-    public function update(Request $request, Order $order)
+    public function update(UpdateOrderRequest $request, Order $order)
     {
-        $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,canceled,refunded',
-            'payment_status' => 'required|in:paid,unpaid,failed',
-            'total_amount' => 'nullable|numeric|min:0',
-            'discount_amount' => 'nullable|numeric|min:0',
-            'shipping_amount' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|in:credit_card,cod,bank_transfer',
-            'notes' => 'nullable|string|max:1000'
-        ]);
-
         $data = $request->only([
             'status', 
             'payment_status', 
@@ -111,7 +88,8 @@ class OrderController extends Controller
         $shippingAmount = $request->shipping_amount ?? 0;
         $data['grand_total'] = $totalAmount - $discountAmount + $shippingAmount;
 
-        $order->update($data);
+        // Use repository to update order
+        $this->orderRepository->update($order->id, $data);
 
         return redirect()->route('admin.orders.show', $order)->with('success', 'تم تحديث الطلب بنجاح');
     }
@@ -123,7 +101,8 @@ class OrderController extends Controller
             return redirect()->route('admin.orders.index')->with('error', 'لا يمكن حذف الطلبات المكتملة أو المشحونة');
         }
 
-        $order->delete();
+        // Use repository to delete order
+        $this->orderRepository->delete($order->id);
         return redirect()->route('admin.orders.index')->with('success', 'تم حذف الطلب بنجاح');
     }
 }

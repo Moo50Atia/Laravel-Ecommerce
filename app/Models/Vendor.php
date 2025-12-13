@@ -21,6 +21,26 @@ class Vendor extends Model
         'phone',
         'user_id',
     ];
+
+    // Mutators
+    public function setStoreNameAttribute($value)
+    {
+        $this->attributes['store_name'] = trim(ucwords(strtolower($value)));
+        // Auto-generate slug if not provided
+        if (empty($this->attributes['slug'])) {
+            $this->attributes['slug'] = \Illuminate\Support\Str::slug($value);
+        }
+    }
+
+    public function setSlugAttribute($value)
+    {
+        $this->attributes['slug'] = \Illuminate\Support\Str::slug($value);
+    }
+
+    public function setDescriptionAttribute($value)
+    {
+        $this->attributes['description'] = trim(strip_tags($value));
+    }
     public function user()
 {
     return $this->belongsTo(User::class);

@@ -6,29 +6,46 @@ use App\Http\Controllers\Controller;
 use App\Models\Vendor;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Http\Requests\Admin\CreateVendorRequest;
+use App\Http\Requests\Admin\UpdateVendorRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use App\Repositories\Contracts\VendorRepositoryInterface;
+use App\Repositories\Contracts\UserRepositoryInterface;
 
 class VendorController extends Controller
 {
+    protected $vendorRepository;
+    protected $userRepository;
+
+    public function __construct(
+        VendorRepositoryInterface $vendorRepository,
+        UserRepositoryInterface $userRepository
+    ) {
+        $this->vendorRepository = $vendorRepository;
+        $this->userRepository = $userRepository;
+    }
     public function index(Request $request)
     {
-        $status = $request->get('status');
         $user = Auth::user();
         
-        $query = Vendor::with('user')->ForAdmin($user);
+        // Use repository for vendor filtering and pagination
+        $vendors = $this->vendorRepository->getForAdmin([
+            'status' => $request->get('status'),
+            'search' => $request->get('search'),
+            'min_rating' => $request->get('min_rating'),
+            'max_rating' => $request->get('max_rating'),
+            'has_products' => $request->get('has_products'),
+            'has_orders' => $request->get('has_orders'),
+            'per_page' => 10
+        ]);
+
+        // Get statistics using repository
+        $statistics = $this->vendorRepository->getStatistics();
         
-        if ($status && in_array($status, ['active', 'inactive', 'suspended'])) {
-            $query->whereHas('user', function($q) use ($status) {
-                $q->where('status', $status);
-            });
-        }
-        
-        $vendors = $query->latest()->paginate(10);
-        
-        return view('admin.manage-vendors', compact('vendors', 'status'));
+        return view('admin.manage-vendors', compact('vendors', 'statistics'));
     }
 
     public function create()
@@ -36,22 +53,13 @@ class VendorController extends Controller
         return view('admin.vendors.create');
     }
 
-    public function store(Request $request)
+    public function store(CreateVendorRequest $request)
     {
-        $validated = $request->validate([
-            'store_name' => 'required|string|max:255|unique:vendors',
-            'email' => 'required|email|unique:vendors',
-            'phone' => 'required|string|max:20',
-            'description' => 'nullable|string|max:1000',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'user_name' => 'required|string|max:255',
-            'user_email' => 'required|email|unique:users',
-            'user_phone' => 'required|string|max:20',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
+        $validated = $request->validated();
 
         DB::transaction(function () use ($validated) {
-            $user = User::create([
+            // Use repository to create user
+            $user = $this->userRepository->create([
                 'name' => $validated['user_name'],
                 'email' => $validated['user_email'],
                 'phone' => $validated['user_phone'],
@@ -60,7 +68,8 @@ class VendorController extends Controller
                 'status' => 'active',
             ]);
 
-            $vendor = Vendor::create([
+            // Use repository to create vendor
+            $this->vendorRepository->create([
                 'store_name' => $validated['store_name'],
                 'slug' => Str::slug($validated['store_name']),
                 'email' => $validated['email'],
@@ -88,18 +97,12 @@ class VendorController extends Controller
         return view('admin.vendors.edit', compact('vendor'));
     }
 
-    public function update(Request $request, Vendor $vendor)
+    public function update(UpdateVendorRequest $request, Vendor $vendor)
     {
-        $validated = $request->validate([
-            'store_name' => 'required|string|max:255|unique:vendors,store_name,' . $vendor->id,
-            'email' => 'required|email|unique:vendors,email,' . $vendor->id,
-            'phone' => 'required|string|max:20',
-            'description' => 'nullable|string|max:1000',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'status' => 'required|in:active,inactive,suspended',
-        ]);
+        $validated = $request->validated();
 
-        $vendor->update([
+        // Use repository to update vendor
+        $this->vendorRepository->update($vendor->id, [
             'store_name' => $validated['store_name'],
             'slug' => Str::slug($validated['store_name']),
             'email' => $validated['email'],
@@ -109,7 +112,8 @@ class VendorController extends Controller
         ]);
 
         if (isset($validated['status'])) {
-            $vendor->user->update(['status' => $validated['status']]);
+            // Use repository to update user status
+            $this->userRepository->update($vendor->user_id, ['status' => $validated['status']]);
         }
 
         return redirect()->route('admin.vendors.index')
@@ -119,8 +123,9 @@ class VendorController extends Controller
     public function destroy(Vendor $vendor)
     {
         DB::transaction(function () use ($vendor) {
-            $vendor->delete();
-            $vendor->user->delete();
+            // Use repository to delete vendor and user
+            $this->vendorRepository->delete($vendor->id);
+            $this->userRepository->delete($vendor->user_id);
         });
 
         return redirect()->route('admin.vendors.index')
@@ -129,14 +134,16 @@ class VendorController extends Controller
 
     public function approve(Vendor $vendor)
     {
-        $vendor->user->update(['status' => 'active']);
+        // Use repository to update user status
+        $this->userRepository->update($vendor->user_id, ['status' => 'active']);
         return redirect()->route('admin.vendors.index')
             ->with('success', 'Vendor approved successfully.');
     }
 
     public function suspend(Vendor $vendor)
     {
-        $vendor->user->update(['status' => 'suspended']);
+        // Use repository to update user status
+        $this->userRepository->update($vendor->user_id, ['status' => 'suspended']);
         return redirect()->route('admin.vendors.index')
             ->with('success', 'Vendor suspended successfully.');
     }

@@ -24,4 +24,31 @@ class UserRequest extends FormRequest
             'status' => 'nullable|string|in:active,suspended,banned',
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'الاسم مطلوب',
+            'email.required' => 'البريد الإلكتروني مطلوب',
+            'email.email' => 'صيغة البريد الإلكتروني غير صحيحة',
+            'password.min' => 'كلمة المرور يجب ألا تقل عن 6 أحرف',
+            'avatar.image' => 'الصورة يجب أن تكون من نوع صورة',
+            'role.in' => 'قيمة الدور غير صحيحة',
+            'status.in' => 'قيمة الحالة غير صحيحة',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'name' => 'الاسم',
+            'email' => 'البريد الإلكتروني',
+            'email_verified_at' => 'تاريخ تأكيد البريد',
+            'password' => 'كلمة المرور',
+            'phone' => 'رقم الهاتف',
+            'avatar' => 'الصورة',
+            'role' => 'الدور',
+            'status' => 'الحالة',
+        ];
+    }
 }

@@ -31,7 +31,9 @@ stars
           </div>
 --}}
  
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
      <!-- Header -->
 
        <header class="bg-gray-100 py-12 mb-8" data-aos="fade-down">
@@ -180,6 +182,6 @@ stars
       },
     });
   </script>
-</x-app-layout>
+@endsection
 
 

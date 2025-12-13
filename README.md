@@ -29,7 +29,6 @@ This is a comprehensive e-commerce platform built with Laravel, designed to prov
 - Wishlist management
 - Shopping cart
 - Secure checkout process
-- Multiple payment methods
 - Order tracking
 
 ### Vendor Management
@@ -136,7 +135,7 @@ This is a comprehensive e-commerce platform built with Laravel, designed to prov
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/yourusername/ecommerce.git
+   git clone https://github.com/Moo50Atia/Laravel-Ecommerce
    ```
 
 2. Install dependencies

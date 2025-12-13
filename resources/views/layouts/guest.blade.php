@@ -7,8 +7,11 @@
 
     <title>{{ config('app.name', 'E-Commerce') }}</title>
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- @vite(['resources/css/app.css', 'resources/js/app.js']) --}}
+    
     <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css">
+    <link rel="stylesheet" href="{{ vite_asset('resources/css/app.css') }}">
+    <script type="module" src="{{ vite_asset('resources/js/app.js') }}"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <div class="min-h-screen flex flex-col justify-center items-center">

@@ -22,4 +22,14 @@ class UpdateVendorInfoRequest extends FormRequest
             //
         ];
     }
+
+    public function messages(): array
+    {
+        return [];
+    }
+
+    public function attributes(): array
+    {
+        return [];
+    }
 }

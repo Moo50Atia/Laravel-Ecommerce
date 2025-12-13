@@ -6,86 +6,64 @@ use App\Http\Requests\UserRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Services\ImageUploadService;
+use App\Repositories\Contracts\UserRepositoryInterface;
 
 class UserController extends Controller
 { 
-    public function checkEmail(Request $request)
-{
-    $exists = User::where('email', $request->email)->exists();
+    protected $imageUploadService;
+    protected $userRepository;
 
-    return response()->json([
-        'exists' => $exists
-    ]);
-}
+    public function __construct(
+        ImageUploadService $imageUploadService,
+        UserRepositoryInterface $userRepository
+    ) {
+        $this->imageUploadService = $imageUploadService;
+        $this->userRepository = $userRepository;
+    }
+    public function checkEmail(Request $request)
+    {
+        $exists = $this->userRepository->where('email', $request->email)->count() > 0;
+
+        return response()->json([
+            'exists' => $exists
+        ]);
+    }
 
     public function index(Request $request): \Illuminate\Contracts\View\View
     {
         $user = Auth::user();
-        $query = User::query()->ForAdmin($user);
+        
+        // Use repository for user filtering and pagination
+        $users = $this->userRepository->getForAdmin([
+            'search' => $request->get('search'),
+            'role' => $request->get('role'),
+            'status' => $request->get('status'),
+            'verified' => $request->get('verified'),
+            'has_vendor' => $request->get('has_vendor'),
+            'per_page' => 15
+        ]);
 
-        // Search by name/email/phone
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
-        }
+        // Get statistics using repository
+        $statistics = $this->userRepository->getStatistics();
 
-        // Filter by role
-        if ($request->filled('role')) {
-            $query->where('role', $request->get('role'));
-        }
+        // Get filter options using repository
+        $roles = $this->userRepository->getByRole('admin')
+            ->merge($this->userRepository->getByRole('vendor'))
+            ->merge($this->userRepository->getByRole('customer'))
+            ->pluck('role')
+            ->unique()
+            ->values();
 
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->get('status'));
-        }
-
-        // Filter by verification
-        if ($request->filled('verified')) {
-            $verified = $request->get('verified');
-            if ($verified === 'yes') {
-                $query->whereNotNull('email_verified_at');
-            } elseif ($verified === 'no') {
-                $query->whereNull('email_verified_at');
-            }
-        }
-
-        // Filter by has vendor
-        if ($request->filled('has_vendor')) {
-            $hasVendor = $request->get('has_vendor');
-            if ($hasVendor === 'yes') {
-                $query->whereHas('vendor');
-            } elseif ($hasVendor === 'no') {
-                $query->whereDoesntHave('vendor');
-            }
-        }
-
-        $users = $query->latest()->paginate(15)->withQueryString();
-
-        // Statistics (across all users filtered by admin's city)
-        $allUsers = User::query()->ForAdmin($user);
-        $totalUsers = $allUsers->count();
-        $activeUsers = (clone $allUsers)->where('status', 'active')->count();
-        $inactiveUsers = (clone $allUsers)->where('status', 'suspended')->count();
-        $verifiedUsers = (clone $allUsers)->whereNotNull('email_verified_at')->count();
-        $vendorsCount = (clone $allUsers)->whereHas('vendor')->count();
-        $adminsCount = (clone $allUsers)->where('role', 'admin')->count();
-
-        // Distinct filter options (filtered by admin's city)
-        $roles = (clone $allUsers)->whereNotNull('role')->distinct()->pluck('role')->values();
-        $statuses = (clone $allUsers)->whereNotNull('status')->distinct()->pluck('status')->values();
+        $statuses = $this->userRepository->getByStatus('active')
+            ->merge($this->userRepository->getByStatus('inactive'))
+            ->pluck('status')
+            ->unique()
+            ->values();
 
         return view('admin.manage-users', compact(
             'users',
-            'totalUsers',
-            'activeUsers',
-            'inactiveUsers',
-            'verifiedUsers',
-            'vendorsCount',
-            'adminsCount',
+            'statistics',
             'roles',
             'statuses'
         ));
@@ -108,15 +86,14 @@ class UserController extends Controller
         $data['status'] = in_array($request->input('status'), ['active','suspended','banned'], true)
             ? $request->input('status')
             : 'active';
-        // Handle avatar upload via polymorphic images (type: avatar)
+        // Handle avatar upload using service
         unset($data['avatar']);
-        $user = User::create($data);
+        
+        // Use repository to create user
+        $user = $this->userRepository->create($data);
+        
         if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $user->images()->create([
-                'url' => $path,
-                'type' => 'avatar',
-            ]);
+            $this->imageUploadService->uploadSingleImage($request->file('avatar'), $user, 'avatar');
         }
         return redirect()->route('admin.users.index')->with('success', 'Created successfully');
         }
@@ -154,27 +131,21 @@ class UserController extends Controller
         $data['status'] = in_array($request->input('status'), ['active','suspended','banned'], true)
             ? $request->input('status')
             : ($user->status ?? 'active');
-        $user->update($data);
-        // Handle avatar upload via polymorphic images (type: avatar)
+            
+        // Use repository to update user
+        $this->userRepository->update($user->id, $data);
+        
+        // Handle avatar upload using service
         if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('avatars', 'public');
-            // Update existing avatar if present, else create
-            $existing = $user->images()->where('type', 'avatar')->first();
-            if ($existing) {
-                $existing->update(['url' => $path]);
-            } else {
-                $user->images()->create([
-                    'url' => $path,
-                    'type' => 'avatar',
-                ]);
-            }
+            $this->imageUploadService->updateOrCreateImage($request->file('avatar'), $user, 'avatar');
         }
         return redirect()->route('admin.users.index')->with('success', 'Updated successfully');
     }
 
     public function destroy(User $user): \Illuminate\Http\RedirectResponse
     {
-        $user->delete();
+        // Use repository to delete user
+        $this->userRepository->delete($user->id);
         return redirect()->route('admin.users.index')->with('success', 'Deleted successfully');
     }
 }

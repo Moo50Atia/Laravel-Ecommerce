@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
 use Illuminate\Support\Str;
+use App\Http\Requests\RegistarRequest;
 
 class RegisteredUserController extends Controller
 {
@@ -28,15 +29,8 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(RegistarRequest $request): RedirectResponse
     {
-        $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => ['regex:/^01[0-9]{9}$/'],
-            'role' => ['required', 'string', 'in:user,vendor']
-        ]);
 
         $user = User::create([
             'name' => $request->name,

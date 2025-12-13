@@ -7,11 +7,16 @@ use App\Http\Requests\BlogRequest;
 use App\Models\Blog;
 use Illuminate\Http\Request;
 use App\Models\BlogReview;
+use App\Services\ReviewManagementService;
 
 class BlogController extends Controller
 { 
- 
+    protected $reviewManagementService;
 
+    public function __construct(ReviewManagementService $reviewManagementService)
+    {
+        $this->reviewManagementService = $reviewManagementService;
+    }
     public function index(): \Illuminate\Contracts\View\View
     {
         
@@ -90,38 +95,20 @@ $special_blogs = Blog::withAvg("reviews", "rate")->orderBy("reviews_avg_rate", "
 
     public function rate(Request $request, Blog $blog): \Illuminate\Http\RedirectResponse
     {
-        $request->validate([
-            'rate' => 'required|integer|min:1|max:5'
-        ]);
-
-        // Check if user already rated this blog
-        $existingReview = $blog->reviews()->where('user_id', Auth::user()->id)->first();
+        $result = $this->reviewManagementService->createOrUpdateBlogReview($request, $blog);
         
-        if ($existingReview) {
-            // Update existing review
-            $existingReview->update(['rate' => $request->rate]);
-            $message = 'تم تحديث تقييمك بنجاح';
-        } else {
-            // Create new review
-            $blog->reviews()->create([
-                'user_id' => Auth::user()->id,
-                'rate' => $request->rate
-            ]);
-            $message = 'تم إضافة تقييمك بنجاح';
-        }
-
-        return redirect()->back()->with('success', $message);
+        return redirect()->back()->with('success', $result['message']);
     }
 
     public function destroyReview(BlogReview $review): \Illuminate\Http\RedirectResponse
     {
-        // Check if user is admin or the review owner
-        if (Auth::user()->role !== 'admin' && Auth::user()->id !== $review->user_id) {
-            abort(403, 'غير مصرح لك بحذف هذا التقييم');
+        $result = $this->reviewManagementService->deleteBlogReview($review);
+        
+        if ($result['success']) {
+            return redirect()->back()->with('success', $result['message']);
+        } else {
+            return redirect()->back()->with('error', $result['message']);
         }
-
-        $review->delete();
-        return redirect()->back()->with('success', 'تم حذف التقييم بنجاح');
     }
 }
 

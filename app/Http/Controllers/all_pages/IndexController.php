@@ -5,40 +5,69 @@ namespace App\Http\Controllers\all_pages;
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
 use App\Models\ProductReview;
-use App\Models\Vendor;
 use Illuminate\Http\Request;
-use App\Models\Product;
-use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use App\Repositories\Contracts\ProductRepositoryInterface;
+use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Repositories\Contracts\VendorRepositoryInterface;
 
 class IndexController extends Controller
 {
-    // Code for favoruite product in first section 
-    public function index(){
-    $topRatedProducts = Product::withAvg('productReviews', 'rating')
-    ->with('image') // assuming morph relation called 'images'
-    ->orderByDesc('reviews_avg_rating')
-    ->take(5)
-    ->get();
-// code for coupons section
-$describeCoupon = Coupon::orderByDesc("created_at")->get();
+    protected $productRepository;
+    protected $userRepository;
+    protected $vendorRepository;
 
-    // customer reviews
-$customerReviews = ProductReview::with("user")->orderByDesc("created_at")->get();
-// numpers 
-$numofusers = User::count();
-$numofvendors = Vendor::count();
-$numofproducts = Product::count();
-// real stories
-$real_stories = Vendor::orderBy("rating")->with("image")->get();
+    public function __construct(
+        ProductRepositoryInterface $productRepository,
+        UserRepositoryInterface $userRepository,
+        VendorRepositoryInterface $vendorRepository
+    ) {
+        $this->productRepository = $productRepository;
+        $this->userRepository = $userRepository;
+        $this->vendorRepository = $vendorRepository;
+    }
 
-    return view("public.index" , compact([
-        "topRatedProducts",
-        "describeCoupon",
-        "numofusers",
-        "numofvendors",
-        "numofproducts",
-        "real_stories",
-        "customerReviews",
-    ]));
+    // Code for favorite product in first section 
+    public function index()
+    {
+        // Get top rated products using repository
+        $topRatedProducts = $this->productRepository->getTopRated(5);
+        
+        // Get coupons (keeping direct model access for now as no repository exists)
+        $describeCoupon = Coupon::orderByDesc("created_at")->get();
+
+        // Get customer reviews (keeping direct model access for now as no repository exists)
+        $customerReviews = ProductReview::with(["user"])->orderByDesc("created_at")->get();
+        
+        // Get statistics using repositories
+        $userStats = $this->userRepository->getStatistics();
+        $vendorStats = $this->vendorRepository->getStatistics();
+        $user = Auth::user();
+        if (!$user) {
+            $user = new \App\Models\User();
+            $user->role = 'user'; // Default role for public access
+        }
+        $productStats = $this->productRepository->getAdminStatistics($user);
+        
+        // Get real stories using repository
+        $real_stories = $this->vendorRepository->getTopRated(10);
+
+        // Extract individual statistics for blade template
+        $numofvendors = $vendorStats['total_vendors'];
+        $numofusers = $userStats['total_users'];
+        $numofproducts = $productStats['total_products'];
+
+        return view("public.index", compact([
+            "topRatedProducts",
+            "describeCoupon",
+            "userStats",
+            "vendorStats", 
+            "productStats",
+            "real_stories",
+            "customerReviews",
+            "numofvendors",
+            "numofusers",
+            "numofproducts",
+        ]));
     }
 }

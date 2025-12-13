@@ -32,4 +32,23 @@ class UpdatePersonalInfoRequest extends FormRequest
         ],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'الاسم مطلوب',
+            'name.max' => 'الاسم طويل جدًا',
+            'email.required' => 'البريد الإلكتروني مطلوب',
+            'email.email' => 'صيغة البريد الإلكتروني غير صحيحة',
+            'email.unique' => 'هذا البريد الإلكتروني مستخدم بالفعل',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'name' => 'الاسم',
+            'email' => 'البريد الإلكتروني',
+        ];
+    }
 }

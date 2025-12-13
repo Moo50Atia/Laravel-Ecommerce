@@ -10,8 +10,11 @@ class ProductReview extends Model
     /** @use HasFactory<\Database\Factories\ProductReviewFactory> */
     use HasFactory;
     protected $fillable = [
+        "user_id",
+        "product_id",
         "rating",
         "comment",
+        "is_approved",
     ];
 
 

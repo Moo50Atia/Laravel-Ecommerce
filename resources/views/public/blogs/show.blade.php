@@ -12,7 +12,9 @@
 <p><strong>published_at:</strong> {{ $blog ->published_at }}</p>
 
 </div> --}}
-{{-- <x-app-layout>
+{{-- @extends('layouts.app')
+
+@section('content')
     <div class="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow" data-aos="fade-up">
         <h2 class="text-xl font-bold mb-6">تفاصيل المقال</h2>
 
@@ -35,8 +37,10 @@
             @endif
         </div>
     </div>
-</x-app-layout>  --}}
-<x-app-layout>
+@endsection  --}}
+@extends('layouts.app')
+
+@section('content')
 
   <!-- Featured Card  افتح الكومنت
         we will use 
@@ -263,4 +267,4 @@
     });
   </script>
 
-</x-app-layout>
+@endsection

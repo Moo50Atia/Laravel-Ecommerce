@@ -22,6 +22,23 @@ class Product extends Model
         "category_id",
         "vendor_id",
     ];
+
+    // Mutators
+    public function setNameAttribute($value)
+    {
+        $this->attributes['name'] = trim(ucwords(strtolower($value)));
+    }
+
+    public function setPriceAttribute($value)
+    {
+        $this->attributes['price'] = round((float)$value, 2);
+    }
+
+    public function setWeightAttribute($value)
+    {
+        // Convert to grams if needed, or keep as is
+        $this->attributes['weight'] = round((float)$value, 2);
+    }
     public function category()
 {
     return $this->belongsTo(Category::class, 'category_id');
@@ -115,3 +132,6 @@ public function wishlists()
 
 
 }
+
+
+

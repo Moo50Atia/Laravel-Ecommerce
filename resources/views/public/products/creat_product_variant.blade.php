@@ -1,5 +1,7 @@
 
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
   <div class="max-w-3xl mx-auto p-6 bg-white rounded shadow mt-10">
     <h2 class="text-xl font-bold mb-4">إضافة اختيارات جديدة للمنتج</h2>
 
@@ -54,7 +56,7 @@
 @endif
 
 
-<x-slot name="script">
+@section('script')
 <script>
   const allOptions = {
     Electronics: {
@@ -180,7 +182,7 @@
     populateOptionNames();
   });
 </script>
-</x-slot>
+@endsection
 
 
-</x-app-layout>
+@endsection

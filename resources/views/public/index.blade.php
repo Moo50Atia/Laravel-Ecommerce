@@ -1,5 +1,7 @@
 
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
     <!-- Product Slider 
     here will be shown photos of most important products 
     we will use Orderitem model to insert data 
@@ -150,7 +152,7 @@
             pagination: { el: ".swiper-pagination", clickable: true },
         });
     </script>
-</x-app-layout> 
+@endsection 
 
 
 

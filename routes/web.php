@@ -30,12 +30,15 @@ Route::resource('/products', ProductController::class)->only(['index', 'show']);
 // Add to wishlist route
 Route::post('/products/{product}/wishlist', [ProductController::class, 'addToWishlist'])->name('products.wishlist.add')->middleware('auth');
 
+// Add product review route
+Route::post('/products/{product}/review', [ProductController::class, 'storeReview'])->name('products.review.store')->middleware('auth');
+
 
 Route::view("/policy","public.policy");
 
 Route::middleware(["auth" , "check_blog"])->resource('/blogs', BlogController::class)
 ->withoutMiddlewareFor(["index" , "show"],["auth" , "check_blog"])
-->withoutMiddlewareFor(["store" , "create"],["auth" , "check_blog"]);
+->withoutMiddlewareFor(["store" , "create"],["auth"]);
 
 // Blog rating route
 Route::post('/blogs/{blog}/rate', [BlogController::class, 'rate'])->name('blogs.rate')->middleware('auth');

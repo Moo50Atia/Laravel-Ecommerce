@@ -28,6 +28,36 @@ class Order extends Model
         "vendor_id",
         "user_id",
     ];
+
+    // Mutators
+    public function setTotalAmountAttribute($value)
+    {
+        $this->attributes['total_amount'] = round((float)$value, 2);
+    }
+
+    public function setDiscountAmountAttribute($value)
+    {
+        $this->attributes['discount_amount'] = round((float)$value, 2);
+    }
+
+    public function setShippingAmountAttribute($value)
+    {
+        $this->attributes['shipping_amount'] = round((float)$value, 2);
+    }
+
+    public function setGrandTotalAttribute($value)
+    {
+        $this->attributes['grand_total'] = round((float)$value, 2);
+    }
+
+    public function setOrderNumberAttribute($value)
+    {
+        if (empty($value)) {
+            $this->attributes['order_number'] = 'ORD-' . strtoupper(uniqid());
+        } else {
+            $this->attributes['order_number'] = $value;
+        }
+    }
     protected $casts = [
         "shipping_address" => "array",
         "billing_address"  => "array",
