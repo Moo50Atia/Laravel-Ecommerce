@@ -56,7 +56,12 @@ interface ProductRepositoryInterface extends RepositoryInterface
     /**
      * Get special/featured products
      */
-    public function getSpecialProducts(): Collection;
+    public function getSpecialProducts(int $limit = 10): Collection;
+
+    /**
+     * Get products for public listing with pagination
+     */
+    public function getForPublic(array $filters = []): LengthAwarePaginator;
 
     /**
      * Get products with variants

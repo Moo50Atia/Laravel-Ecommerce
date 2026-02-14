@@ -55,7 +55,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Share basic data with all views
-     
+        // Register Observers
+        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
+        \App\Models\Product::observe(\App\Observers\ProductObserver::class);
+
+        // Register Policies
+        \Illuminate\Support\Facades\Gate::policy(\App\Models\Blog::class, \App\Policies\BlogPolicy::class);
     }
 }

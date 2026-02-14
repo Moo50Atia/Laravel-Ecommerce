@@ -25,12 +25,12 @@ class OrderRepository extends BaseRepository implements OrderRepositoryInterface
 
         // Apply filters
         if (isset($filters['search']) && $filters['search']) {
-            $query->where(function($q) use ($filters) {
+            $query->where(function ($q) use ($filters) {
                 $q->where('order_number', 'like', '%' . $filters['search'] . '%')
-                  ->orWhereHas('user', function($userQuery) use ($filters) {
-                      $userQuery->where('name', 'like', '%' . $filters['search'] . '%')
-                               ->orWhere('email', 'like', '%' . $filters['search'] . '%');
-                  });
+                    ->orWhereHas('user', function ($userQuery) use ($filters) {
+                        $userQuery->where('name', 'like', '%' . $filters['search'] . '%')
+                            ->orWhere('email', 'like', '%' . $filters['search'] . '%');
+                    });
             });
         }
 
@@ -115,21 +115,29 @@ class OrderRepository extends BaseRepository implements OrderRepositoryInterface
 
     public function getAdminStatistics(User $user): array
     {
-        $allOrders = $this->resetQuery()
-            ->getQuery()
-            ->ForAdmin($user)
-            ->get();
+        $stats = $this->model->newQuery()->ForAdmin($user)
+            ->selectRaw('
+                COUNT(*) as total_orders,
+                SUM(grand_total) as total_revenue,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending_orders,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed_orders,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as cancelled_orders,
+                SUM(CASE WHEN payment_status = ? THEN 1 ELSE 0 END) as paid_orders,
+                SUM(CASE WHEN payment_status = ? THEN 1 ELSE 0 END) as unpaid_orders,
+                AVG(grand_total) as average_order_value
+            ', ['pending', 'delivered', 'cancelled', 'paid', 'pending'])
+            ->first();
 
         return [
-            'total_orders' => $allOrders->count(),
-            'total_sales' => number_format($allOrders->sum('grand_total'), 2),
-            'pending_orders' => $allOrders->where('status', 'pending')->count(),
-            'completed_orders' => $allOrders->where('status', 'delivered')->count(),
-            'cancelled_orders' => $allOrders->where('status', 'cancelled')->count(),
-            'paid_orders' => $allOrders->where('payment_status', 'paid')->count(),
-            'unpaid_orders' => $allOrders->where('payment_status', 'pending')->count(),
-            'average_order_value' => $allOrders->avg('grand_total'),
-            'total_revenue' => $allOrders->sum('grand_total'),
+            'total_orders' => $stats->total_orders ?? 0,
+            'total_sales' => number_format($stats->total_revenue ?? 0, 2),
+            'pending_orders' => $stats->pending_orders ?? 0,
+            'completed_orders' => $stats->completed_orders ?? 0,
+            'cancelled_orders' => $stats->cancelled_orders ?? 0,
+            'paid_orders' => $stats->paid_orders ?? 0,
+            'unpaid_orders' => $stats->unpaid_orders ?? 0,
+            'average_order_value' => $stats->average_order_value ?? 0,
+            'total_revenue' => $stats->total_revenue ?? 0,
         ];
     }
 
@@ -184,7 +192,7 @@ class OrderRepository extends BaseRepository implements OrderRepositoryInterface
     public function getTotalSales(User $user = null): float
     {
         $query = $this->resetQuery()->getQuery();
-        
+
         if ($user) {
             $query->ForAdmin($user);
         }
@@ -195,7 +203,7 @@ class OrderRepository extends BaseRepository implements OrderRepositoryInterface
     public function getCountByStatus(string $status, User $user = null): int
     {
         $query = $this->resetQuery()->getQuery()->where('status', $status);
-        
+
         if ($user) {
             $query->ForAdmin($user);
         }
@@ -205,25 +213,49 @@ class OrderRepository extends BaseRepository implements OrderRepositoryInterface
 
     public function getDashboardData(User $user = null): array
     {
-        $query = $this->resetQuery()->getQuery();
-        
+        $query = $this->model->newQuery();
+
         if ($user) {
             $query->ForAdmin($user);
         }
 
-        $allOrders = $query->get();
+        $today = Carbon::today()->toDateTimeString();
+        $startOfMonth = Carbon::now()->startOfMonth()->toDateTimeString();
+
+        $stats = $query->selectRaw('
+                COUNT(*) as total_orders,
+                SUM(grand_total) as total_sales,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending_orders,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed_orders,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as cancelled_orders,
+                SUM(CASE WHEN payment_status = ? THEN 1 ELSE 0 END) as paid_orders,
+                SUM(CASE WHEN payment_status = ? THEN 1 ELSE 0 END) as unpaid_orders,
+                SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as today_orders,
+                SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as this_month_orders,
+                SUM(CASE WHEN created_at >= ? THEN grand_total ELSE 0 END) as this_month_sales
+            ', [
+            'pending',
+            'delivered',
+            'cancelled',
+            'paid',
+            'pending',
+            $today,
+            $startOfMonth,
+            $startOfMonth
+        ])
+            ->first();
 
         return [
-            'total_orders' => $allOrders->count(),
-            'total_sales' => number_format($allOrders->sum('grand_total'), 2),
-            'pending_orders' => $allOrders->where('status', 'pending')->count(),
-            'completed_orders' => $allOrders->where('status', 'delivered')->count(),
-            'cancelled_orders' => $allOrders->where('status', 'cancelled')->count(),
-            'paid_orders' => $allOrders->where('payment_status', 'paid')->count(),
-            'unpaid_orders' => $allOrders->where('payment_status', 'pending')->count(),
-            'today_orders' => $allOrders->where('created_at', '>=', Carbon::today())->count(),
-            'this_month_orders' => $allOrders->where('created_at', '>=', Carbon::now()->startOfMonth())->count(),
-            'this_month_sales' => $allOrders->where('created_at', '>=', Carbon::now()->startOfMonth())->sum('grand_total'),
+            'total_orders' => $stats->total_orders ?? 0,
+            'total_sales' => number_format($stats->total_sales ?? 0, 2),
+            'pending_orders' => $stats->pending_orders ?? 0,
+            'completed_orders' => $stats->completed_orders ?? 0,
+            'cancelled_orders' => $stats->cancelled_orders ?? 0,
+            'paid_orders' => $stats->paid_orders ?? 0,
+            'unpaid_orders' => $stats->unpaid_orders ?? 0,
+            'today_orders' => $stats->today_orders ?? 0,
+            'this_month_orders' => $stats->this_month_orders ?? 0,
+            'this_month_sales' => $stats->this_month_sales ?? 0,
         ];
     }
 
@@ -291,5 +323,43 @@ class OrderRepository extends BaseRepository implements OrderRepositoryInterface
     public function getTotalRevenue(User $user = null): float
     {
         return $this->resetQuery()->getQuery()->where('status', '!=', 'cancelled')->sum('grand_total');
+    }
+
+    public function getPendingOrder(int $userId): ?\App\Models\Order
+    {
+        return $this->resetQuery()
+            ->where('user_id', $userId)
+            ->where('status', 'pending')
+            ->with(['items.product', 'items.variant'])
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
+    public function createPendingOrder(int $userId): \App\Models\Order
+    {
+        return $this->create([
+            'user_id' => $userId,
+            'status' => 'pending',
+            'order_number' => 'ORD-' . strtoupper(\Illuminate\Support\Str::random(8)),
+            'total_amount' => 0,
+            'grand_total' => 0,
+            'expires_at' => now()->addDay(),
+        ]);
+    }
+
+    public function addItem(int $orderId, array $data): \App\Models\OrderItem
+    {
+        $order = $this->find($orderId);
+        return $order->items()->create($data);
+    }
+
+    public function removeItem(int $itemId): bool
+    {
+        return \App\Models\OrderItem::where('id', $itemId)->delete() > 0;
+    }
+
+    public function updateItem(int $itemId, array $data): bool
+    {
+        return \App\Models\OrderItem::where('id', $itemId)->update($data) > 0;
     }
 }

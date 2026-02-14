@@ -25,7 +25,7 @@ abstract class BaseRepository implements RepositoryInterface
     abstract protected function getModel(): Model;
 
     /**
-     * Reset the query builder
+     * Reset the query builder to a fresh state
      */
     protected function resetQuery(): self
     {
@@ -35,22 +35,32 @@ abstract class BaseRepository implements RepositoryInterface
 
     public function all(): Collection
     {
-        return $this->resetQuery()->query->get();
+        // all() typically means "everything", ignoring previous filters
+        // If filters are needed, use where(...)->get()
+        $result = $this->model->all();
+        $this->resetQuery();
+        return $result;
     }
 
     public function find(int $id): ?Model
     {
-        return $this->resetQuery()->query->find($id);
+        $result = $this->query->find($id);
+        $this->resetQuery();
+        return $result;
     }
 
     public function findOrFail(int $id): Model
     {
-        return $this->resetQuery()->query->findOrFail($id);
+        $result = $this->query->findOrFail($id);
+        $this->resetQuery();
+        return $result;
     }
 
     public function create(array $data): Model
     {
-        return $this->model->create($data);
+        $model = $this->model->create($data);
+        $this->resetQuery();
+        return $model;
     }
 
     public function update(int $id, array $data): bool
@@ -59,7 +69,9 @@ abstract class BaseRepository implements RepositoryInterface
         if (!$model) {
             return false;
         }
-        return $model->update($data);
+        $result = $model->update($data);
+        $this->resetQuery();
+        return $result;
     }
 
     public function delete(int $id): bool
@@ -68,12 +80,16 @@ abstract class BaseRepository implements RepositoryInterface
         if (!$model) {
             return false;
         }
-        return $model->delete();
+        $result = $model->delete();
+        $this->resetQuery();
+        return $result;
     }
 
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
-        return $this->query->paginate($perPage);
+        $result = $this->query->paginate($perPage);
+        $this->resetQuery();
+        return $result;
     }
 
     public function with(array $relations): self
@@ -100,12 +116,16 @@ abstract class BaseRepository implements RepositoryInterface
 
     public function first(): ?Model
     {
-        return $this->query->first();
+        $result = $this->query->first();
+        $this->resetQuery();
+        return $result;
     }
 
     public function count(): int
     {
-        return $this->query->count();
+        $result = $this->query->count();
+        $this->resetQuery();
+        return $result;
     }
 
     /**
@@ -176,7 +196,9 @@ abstract class BaseRepository implements RepositoryInterface
      */
     public function avg(string $column)
     {
-        return $this->query->avg($column);
+        $result = $this->query->avg($column);
+        $this->resetQuery();
+        return $result;
     }
 
     /**
@@ -184,7 +206,9 @@ abstract class BaseRepository implements RepositoryInterface
      */
     public function sum(string $column)
     {
-        return $this->query->sum($column);
+        $result = $this->query->sum($column);
+        $this->resetQuery();
+        return $result;
     }
 
     /**
@@ -211,6 +235,7 @@ abstract class BaseRepository implements RepositoryInterface
 
     /**
      * Get the query builder for custom queries
+     * Warning: This exposes the mutable builder.
      */
     public function getQuery(): Builder
     {
@@ -222,6 +247,8 @@ abstract class BaseRepository implements RepositoryInterface
      */
     public function get(): Collection
     {
-        return $this->query->get();
+        $result = $this->query->get();
+        $this->resetQuery();
+        return $result;
     }
 }

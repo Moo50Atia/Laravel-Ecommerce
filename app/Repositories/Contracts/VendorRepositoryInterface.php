@@ -13,6 +13,11 @@ interface VendorRepositoryInterface extends RepositoryInterface
     public function getWithUser(): Collection;
 
     /**
+     * Get vendor list for dropdowns
+     */
+    public function getVendorList(): Collection;
+
+    /**
      * Get vendors with products
      */
     public function getWithProducts(): Collection;
@@ -55,7 +60,7 @@ interface VendorRepositoryInterface extends RepositoryInterface
     /**
      * Get vendors for admin with filtering
      */
-    public function getForAdmin(array $filters = []): LengthAwarePaginator;
+    public function getForAdmin(\App\Models\User $user, array $filters = []): LengthAwarePaginator;
 
     /**
      * Get vendors with product count

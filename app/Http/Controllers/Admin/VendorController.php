@@ -30,9 +30,9 @@ class VendorController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        
+
         // Use repository for vendor filtering and pagination
-        $vendors = $this->vendorRepository->getForAdmin([
+        $vendors = $this->vendorRepository->getForAdmin($user, [
             'status' => $request->get('status'),
             'search' => $request->get('search'),
             'min_rating' => $request->get('min_rating'),
@@ -44,7 +44,7 @@ class VendorController extends Controller
 
         // Get statistics using repository
         $statistics = $this->vendorRepository->getStatistics();
-        
+
         return view('admin.manage-vendors', compact('vendors', 'statistics'));
     }
 
@@ -87,7 +87,7 @@ class VendorController extends Controller
 
     public function show(Vendor $vendor)
     {
-        // $vendor->with(['user', 'products', 'orders']);
+        $vendor->load(['user', 'products', 'orders']);
         return view('admin.vendors.show', compact('vendor'));
     }
 

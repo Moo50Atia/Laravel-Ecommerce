@@ -23,7 +23,7 @@ class ProductController extends Controller
     protected $vendorRepository;
 
     public function __construct(
-        ImageUploadService $imageUploadService, 
+        ImageUploadService $imageUploadService,
         SearchFilterService $searchFilterService,
         ProductRepositoryInterface $productRepository,
         VendorRepositoryInterface $vendorRepository
@@ -36,7 +36,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        
+
         // Use repository for product filtering and pagination
         $products = $this->productRepository->getForAdmin($user, [
             'search' => $request->get('search'),
@@ -53,12 +53,12 @@ class ProductController extends Controller
         $statistics = $this->productRepository->getAdminStatistics($user);
 
         // Get vendors for filter dropdown using repository
-        $vendors = $this->vendorRepository->getWithUser()
-            ->pluck('user.name')
+        $vendors = $this->vendorRepository->getVendorList()
+            ->pluck('user_name')
             ->unique()
             ->filter()
             ->values();
- 
+
         return view('admin.manage-products', compact(
             'products',
             'statistics',
@@ -96,11 +96,11 @@ class ProductController extends Controller
     }
 
     public function edit(Product $product)
-    { 
+    {
         // Get vendors using repository
-        $vendors1 = $this->vendorRepository->all();
-        
-        return view('public.products.edit', compact('product' ,"vendors1"));
+        $vendors1 = $this->vendorRepository->getVendorList();
+
+        return view('public.products.edit', compact('product', "vendors1"));
     }
 
     public function update(CreateProductRequest $request, Product $product)

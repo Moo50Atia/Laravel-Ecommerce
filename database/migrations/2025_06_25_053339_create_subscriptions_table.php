@@ -12,13 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('subscriptions', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('user_id')->constrained()->onDelete('cascade');
-        $table->unsignedBigInteger('plan_id')->nullable();
-        $table->enum('status', ['active', 'canceled', 'expired'])->default('active');
-        $table->date('start_date')->nullable();
-        $table->date('end_date')->nullable();
-        $table->timestamps();
+            $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->unsignedBigInteger('plan_id')->onDelete('cascade')->nullable();
+            $table->enum('status', ['active', 'canceled', 'expired'])->default('active');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+            $table->index(['user_id', 'status']);
+            $table->timestamps();
         });
     }
 

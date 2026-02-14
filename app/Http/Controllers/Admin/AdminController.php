@@ -22,184 +22,110 @@ class AdminController extends Controller
     protected $orderRepository;
     protected $userRepository;
     protected $vendorRepository;
+    protected $dashboardService;
 
     public function __construct(
         ProductRepositoryInterface $productRepository,
         OrderRepositoryInterface $orderRepository,
         UserRepositoryInterface $userRepository,
-        VendorRepositoryInterface $vendorRepository
+        VendorRepositoryInterface $vendorRepository,
+        \App\Services\DashboardService $dashboardService
     ) {
         $this->productRepository = $productRepository;
         $this->orderRepository = $orderRepository;
         $this->userRepository = $userRepository;
         $this->vendorRepository = $vendorRepository;
+        $this->dashboardService = $dashboardService;
     }
-    /**
-     * Filter query by admin's city
-     * This method applies city-based filtering to any model that has a relationship
-     * chain leading to a user with an address
-     * 
-     * @param mixed $query The query builder instance
-     * @param string $relationPath The dot-notation path to the user's address (e.g., 'vendor.user')
-     * @return mixed The filtered query
-     */
-    // protected function filterByCityScope($query, $relationPath = null)
-    // {
-    //     $user = Auth::user();
-        
-    //     // Super admin sees all data
-    //     if ($user->role == 'super_admin') {
-    //         return $query;
-    //     }
-        
-    //     // Check if admin has an address with city
-    //     if ($user->role == 'admin' && $user->addresses && $user->addresses->city) {
-    //         $city = $user->addresses->city;
-            
-    //         // If a relation path is provided, use it to filter
-    //         if ($relationPath) {
-    //             $relations = explode('.', $relationPath);
-    //             $lastRelation = array_pop($relations);
-                
-    //             // Build the nested whereHas query
-    //             $query->whereHas($lastRelation, function($q) use ($relations, $city) {
-    //                 $this->buildNestedWhereHas($q, $relations, $city);
-    //             });
-    //         }
-    //     }
-        
-    //     return $query;
-    // }
-    
-    /**
-     * Build nested whereHas queries for filtering by city
-     * 
-     * @param mixed $query The query builder instance
-     * @param array $relations The array of relations to traverse
-     * @param string $city The city to filter by
-     */
-    protected function buildNestedWhereHas($query, $relations, $city)
-    {
-        if (empty($relations)) {
-            // We've reached the end of the relation chain, apply the city filter
-            $query->whereHas('addresses', function($q) use ($city) {
-                $q->where('city', $city);
-            });
-            return;
-        }
-        
-        $relation = array_pop($relations);
-        $query->whereHas($relation, function($q) use ($relations, $city) {
-            $this->buildNestedWhereHas($q, $relations, $city);
-        });
-    }
-    
+
     public function dashboard()
     {
         $user = Auth::user();
-        
-        // Get statistics using repositories
-        $productStats = $this->productRepository->getAdminStatistics($user);
-        $orderStats = $this->orderRepository->getAdminStatistics($user);
-        $userStats = $this->userRepository->getStatistics();
-        $vendorStats = $this->vendorRepository->getStatistics();
-        
-        // Get recent data using repositories
-        $recentOrders = $this->orderRepository->getRecent(5);
-        $recentProducts = $this->productRepository->getRecent(5);
-        
-        // Get top products using repository
-        $topProducts = $this->productRepository->getTopRated(5);
-        
-        // Get orders by status using repository
+
+        // Use DashboardService for cached, optimized data
+        $data = $this->dashboardService->getAdminDashboard($user);
+
+        // Extract stats from service logic
+        $stats = $data['stats'];
+        $productStats = $stats['products'];
+        $orderStats = $stats['orders'];
+        $userStats = $stats['users'];
+        $vendorStats = $stats['vendors'];
+
+        $charts = $data['charts'];
+        $recent = $data['recent'];
+
+        // Map service data to view variables
+
+        // Charts data (Service returns array of objects, view expects collections/arrays)
+        $monthlyData = collect($charts['monthly_orders']); // Contains both orders and revenue
+
+        $monthlyRevenue = $monthlyData->map(function ($item) {
+            return [
+                'month' => $item->label,
+                'revenue' => $item->revenue
+            ];
+        });
+
+        $monthlyOrders = $monthlyData->map(function ($item) {
+            return [
+                'month' => $item->label,
+                'orders' => $item->order_count
+            ];
+        });
+
+        // Orders by status
+        $ordersByStatusRaw = collect($charts['orders_by_status'])->pluck('count', 'status')->toArray();
         $ordersByStatus = [
-            'pending' => $this->orderRepository->getCountByStatus('pending', $user),
-            'processing' => $this->orderRepository->getCountByStatus('processing', $user),
-            'completed' => $this->orderRepository->getCountByStatus('completed', $user),
-            'cancelled' => $this->orderRepository->getCountByStatus('cancelled', $user),
+            'pending' => $ordersByStatusRaw['pending'] ?? 0,
+            'processing' => $ordersByStatusRaw['processing'] ?? 0,
+            'completed' => $ordersByStatusRaw['completed'] ?? 0, // Service query might fallback 'completed' to 'delivered'?
+            'cancelled' => $ordersByStatusRaw['cancelled'] ?? 0,
         ];
-        
-        // Calculate revenue growth (keeping some direct calculations for complex logic)
-        $currentMonth = Carbon::now()->startOfMonth();
-        $previousMonth = Carbon::now()->subMonth()->startOfMonth();
-        
-        $currentMonthRevenue = $this->orderRepository->getByDateRange(
-            $currentMonth->toDateString(), 
-            Carbon::now()->toDateString()
-        )->where('status', '!=', 'cancelled')->sum('grand_total');
-        
-        $previousMonthRevenue = $this->orderRepository->getByDateRange(
-            $previousMonth->toDateString(), 
-            $currentMonth->toDateString()
-        )->where('status', '!=', 'cancelled')->sum('grand_total');
-        
+        // Note: OrderRepository maps 'delivered' as valid completed status usually. 
+        // We should ensure service query matches these keys.
+
+        // Recent items
+        $recentOrders = $recent['recent_orders'];
+        $recentProducts = $recent['recent_products'];
+
+        // Top products - Service doesn't provide this yet, so we use Repo (it's fast enough or can be added to service)
+        // For now, keep using repository for top products as it's not heavy
+        $topProducts = $this->productRepository->getTopRated(5);
+
+        // Other scalar counts
+        $totalCategories = Category::count();
+        $totalOrders = $orderStats['total'];
+        $totalProducts = $productStats['total'];
+        $totalUsers = $userStats['total'];
+        $totalRevenue = $orderStats['total_revenue'];
+
+        // Revenue Growth - calculation requires previous month which might be in chart data
+        // For simplicity/accuracy, we can keep the specific date range query or calculate from chart data if available
+        // Let's rely on repository for accurate growth calc as it's specific business logic
+        // Or better, calculate from the monthly data if sufficient
+        $currentMonthRevenue = $monthlyData->last()->revenue ?? 0;
+        $previousMonthRevenue = $monthlyData->slice(-2, 1)->first()->revenue ?? 0;
+
         $revenueGrowth = 0;
         if ($previousMonthRevenue > 0) {
             $revenueGrowth = round((($currentMonthRevenue - $previousMonthRevenue) / $previousMonthRevenue) * 100, 1);
         }
-        
-        // Get new items this month
-        $newOrders = $this->orderRepository->getByDateRange(
-            $currentMonth->toDateString(), 
-            Carbon::now()->toDateString()
-        )->count();
-        
-        $newProducts = $this->productRepository->getByDateRange(
-            $currentMonth->toDateString(), 
-            Carbon::now()->toDateString()
-        )->count();
-        
-        $newUsers = $this->userRepository->getByRegistrationDateRange(
-            $currentMonth->toDateString(), 
-            Carbon::now()->toDateString()
-        )->count();
-        
-        // Monthly revenue data for charts (last 6 months)
-        $monthlyRevenue = collect();
-        for ($i = 5; $i >= 0; $i--) {
-            $month = Carbon::now()->subMonths($i);
-            $monthStart = $month->startOfMonth()->toDateString();
-            $monthEnd = $month->endOfMonth()->toDateString();
-            
-            $revenue = $this->orderRepository->getByDateRange($monthStart, $monthEnd)
-                ->where('status', '!=', 'cancelled')
-                ->sum('grand_total');
-            
-            $monthlyRevenue->push([
-                'month' => $month->format('M Y'),
-                'revenue' => $revenue
-            ]);
-        }
-        
-        // Orders by month for charts (last 6 months)
-        $monthlyOrders = collect();
-        for ($i = 5; $i >= 0; $i--) {
-            $month = Carbon::now()->subMonths($i);
-            $monthStart = $month->startOfMonth()->toDateString();
-            $monthEnd = $month->endOfMonth()->toDateString();
-            
-            $orders = $this->orderRepository->getByDateRange($monthStart, $monthEnd)->count();
-            
-            $monthlyOrders->push([
-                'month' => $month->format('M Y'),
-                'orders' => $orders
-            ]);
-        }
-        
-        // Total categories (keeping direct access as no repository exists)
-        $totalCategories = Category::count();
-        
-        // Extract individual statistics for blade template
-        $totalOrders = $orderStats['total_orders'];
-        $totalProducts = $productStats['total_products'];
-        $totalUsers = $userStats['total_users'];
-        
-        // Calculate total revenue from non-cancelled orders using repository
-        $totalRevenue = $this->orderRepository->getTotalRevenue($user);
-        
+
+        // new items counts - can use repo or add to service. 
+        // For now, use Repositories but they are efficient simple queries.
+        $now = Carbon::now();
+        $startOfMonth = $now->copy()->startOfMonth()->toDateString();
+        $endOfMonth = $now->copy()->toDateString();
+
+        $newOrders = $this->orderRepository->getByDateRange($startOfMonth, $endOfMonth)->count();
+        // Product/User repo don't have getByDateRange optimized count, but getByDateRange->count() is okay.
+        $newProducts = $this->productRepository->getByDateRange($startOfMonth, $endOfMonth)->count();
+        $newUsers = $this->userRepository->getByRegistrationDateRange($startOfMonth, $endOfMonth)->count();
+
         return view('admin.dashboard', compact(
             'orderStats',
-            'productStats', 
+            'productStats',
             'userStats',
             'vendorStats',
             'totalCategories',

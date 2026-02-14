@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Product;
+use App\Models\Category;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Product>
@@ -24,7 +25,7 @@ class ProductFactory extends Factory
             'weight' => fake()->randomFloat(2, 0.5, 5),
             'dimensions' => json_encode(['width' => 10, 'height' => 20, 'depth' => 5]),
             'short_description' => fake()->sentence(),
-            'category' => $this->faker->randomElement(['Electronics', 'Clothing', 'Books', 'Home']),
+            'category_id' => Category::inRandomOrder()->first()->id,
         ];
     }
 

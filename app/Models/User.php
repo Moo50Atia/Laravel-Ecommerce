@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Models\Image;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Attributes\Scope;
+use App\Traits\AdminScopeable;
+use App\Traits\HasActivityLog;
+
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, AdminScopeable, HasActivityLog;
 
     /**
      * The attributes that are mass assignable.
@@ -53,6 +54,15 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Relationship path from User to user_addresses for admin city scoping.
+     * User → Addresses (direct)
+     */
+    protected function getAdminCityRelationPath(): string
+    {
+        return 'addresses';
+    }
+
     // Mutators
     public function setNameAttribute($value)
     {
@@ -73,73 +83,44 @@ class User extends Authenticatable
             $this->attributes['avatar'] = $value;
         }
     }
+
     public function addresses()
-{
-    return $this->hasOne(UserAddress::class);
-}
+    {
+        return $this->hasOne(UserAddress::class);
+    }
 
-public function vendor()
-{
-    return $this->hasOne(Vendor::class);
-}
+    public function vendor()
+    {
+        return $this->hasOne(Vendor::class);
+    }
 
-public function orders()
-{
-    return $this->hasMany(Order::class);
-}
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
 
-public function wishlists()
-{
-    return $this->hasMany(Wishlist::class);
-}
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
+    }
 
-public function productReviews()
-{
-    return $this->hasMany(ProductReview::class);
-}
+    public function productReviews()
+    {
+        return $this->hasMany(ProductReview::class);
+    }
 
-public function blogs()
-{
-    return $this->hasMany(Blog::class, 'author_id');
-}
-public function subscription()
-{
-    return $this->hasOne(Subscription::class);
-}
-public function images()
+    public function blogs()
+    {
+        return $this->hasMany(Blog::class, 'author_id');
+    }
+
+    public function subscription()
+    {
+        return $this->hasOne(Subscription::class);
+    }
+
+    public function images()
     {
         return $this->morphMany(Image::class, "imageable");
     }
-
-     #[Scope]
-    protected function ForAdmin(Builder $query, User $user ): void
-    {
-        if ($user->role == "superadmin" || $user->role == "super_admin")  {
-            return ;               // سوبر أدمن يشوف كل البيانات
-        }
-
-        if ($user->role == "admin") {
-            
-            // Filter products based on vendor's city matching admin's city
-            if ($user->addresses && $user->addresses->city) {
-                
-                 
-                        $query->whereHas('addresses', function($addressQuery) use ($user) {
-                            $addressQuery->where('city', $user->addresses->city);
-                        });
-                    
-                
-            }
-            return;
-        }
-
-        // أي دور تاني ممنوع يشوف هنا
-        $query->whereRaw('1=0');  // يرجّع فاضي
-    }
-
-
 }
-
-
-
-

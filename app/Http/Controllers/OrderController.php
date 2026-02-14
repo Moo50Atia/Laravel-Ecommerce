@@ -13,14 +13,14 @@ class OrderController extends Controller
 {
     public function index(Request $request): \Illuminate\Contracts\View\View
     {
-        if($request->hasFile("status") && $request->input("status")!= "all" ){
-            $orders = Order::where("vendor_id" , Auth::user()->vendor->id)->with("user")
-            ->where("status",$request->input("status"))
-            ->get();
-            
-        }else{
-      $orders = Order::where("vendor_id" , Auth::user()->vendor->id)->with("user")->get();
-    }
+        $query = Order::where("vendor_id", Auth::user()->vendor->id)->with("user");
+
+        if ($request->filled("status") && $request->input("status") != "all") {
+            $query->where("status", $request->input("status"));
+        }
+
+        $orders = $query->latest()->paginate(15);
+
         return view('orders.index', compact('orders'));
     }
 
@@ -48,7 +48,7 @@ class OrderController extends Controller
     public function update(OrderRequest $request, Order $order): \Illuminate\Http\RedirectResponse
     {
         $order->update($request->validated());
-        return redirect()->route('vendor.orders.show' , $order->id)->with('success', 'Updated successfully');
+        return redirect()->route('vendor.orders.show', $order->id)->with('success', 'Updated successfully');
     }
 
     public function destroy(Order $order): \Illuminate\Http\RedirectResponse
@@ -56,13 +56,14 @@ class OrderController extends Controller
         $order->delete();
         return redirect()->route('vendor.orders.index')->with('success', 'Deleted successfully');
     }
-    public function dashboard (){
-        $all_products = Product::where("vendor_id" , Auth::user()->vendor->id)->count() ;
-        $all_orders = Order::where("vendor_id" , Auth::user()->vendor->id)->count();
-        $current_orders = Order::where("vendor_id" , Auth::user()->vendor->id)
-        ->where("status" , "delivered")->count();
-        $canceld_oders = Order::where("vendor_id" , Auth::user()->vendor->id)
-        ->where("status" , "canceled")->count();
-        return view("vendor.dashboard" , compact("all_products","all_orders","current_orders","canceld_oders"));
+    public function dashboard()
+    {
+        $all_products = Product::where("vendor_id", Auth::user()->vendor->id)->count();
+        $all_orders = Order::where("vendor_id", Auth::user()->vendor->id)->count();
+        $current_orders = Order::where("vendor_id", Auth::user()->vendor->id)
+            ->where("status", "delivered")->count();
+        $canceld_oders = Order::where("vendor_id", Auth::user()->vendor->id)
+            ->where("status", "canceled")->count();
+        return view("vendor.dashboard", compact("all_products", "all_orders", "current_orders", "canceld_oders"));
     }
 }

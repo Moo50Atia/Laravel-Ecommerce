@@ -18,13 +18,14 @@ class BlogFactory extends Factory
      */
     public function definition(): array
     {
-       
+
         $title = fake()->sentence();
         return [
             'title' => $title,
             'content' => fake()->paragraph(5),
-             'author_id' => User::factory(),
-             'short_description' => $this->faker->sentence(),
+            'author_id' => User::factory(),
+            'short_description' => $this->faker->sentence(),
+            'slug' => Str::slug($title),
             'is_published' => fake()->boolean(50),
             'published_at' => now(),
         ];

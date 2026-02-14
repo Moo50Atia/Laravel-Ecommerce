@@ -66,4 +66,9 @@ interface CouponRepositoryInterface extends RepositoryInterface
      * Get coupons by usage limit
      */
     public function getByUsageLimit(int $limit): Collection;
+
+    /**
+     * Get recent active coupons
+     */
+    public function getRecentActive(int $limit = 5): Collection;
 }

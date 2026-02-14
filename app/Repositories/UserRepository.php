@@ -79,7 +79,7 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
     {
         return $this->resetQuery()
             ->getQuery()
-            ->whereHas('addresses', function($query) use ($city) {
+            ->whereHas('addresses', function ($query) use ($city) {
                 $query->where('city', $city);
             })
             ->with(['addresses', 'vendor'])
@@ -90,10 +90,10 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
     {
         return $this->resetQuery()
             ->getQuery()
-            ->where(function($q) use ($query) {
+            ->where(function ($q) use ($query) {
                 $q->where('name', 'like', '%' . $query . '%')
-                  ->orWhere('email', 'like', '%' . $query . '%')
-                  ->orWhere('phone', 'like', '%' . $query . '%');
+                    ->orWhere('email', 'like', '%' . $query . '%')
+                    ->orWhere('phone', 'like', '%' . $query . '%');
             })
             ->with(['addresses', 'vendor'])
             ->get();
@@ -101,20 +101,29 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
 
     public function getStatistics(): array
     {
-        $totalUsers = $this->resetQuery()->count();
-        $customers = $this->getCountByRole('customer');
-        $vendors = $this->getCountByRole('vendor');
-        $admins = $this->getCountByRole('admin');
-        $activeUsers = $this->getCountByStatus('active');
-        $inactiveUsers = $this->getCountByStatus('inactive');
+        $stats = $this->model->newQuery()
+            ->selectRaw('
+                COUNT(*) as total_users,
+                SUM(CASE WHEN role = ? THEN 1 ELSE 0 END) as customers,
+                SUM(CASE WHEN role = ? THEN 1 ELSE 0 END) as vendors,
+                SUM(CASE WHEN role = ? THEN 1 ELSE 0 END) as admins,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as active_users,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as inactive_users
+            ', ['customer', 'vendor', 'admin', 'active', 'inactive'])
+            ->first();
+
+        $totalUsers = $stats->total_users ?? 0;
+        $customers = $stats->customers ?? 0;
+        $vendors = $stats->vendors ?? 0;
+        $admins = $stats->admins ?? 0;
 
         return [
             'total_users' => $totalUsers,
             'customers' => $customers,
             'vendors' => $vendors,
             'admins' => $admins,
-            'active_users' => $activeUsers,
-            'inactive_users' => $inactiveUsers,
+            'active_users' => $stats->active_users ?? 0,
+            'inactive_users' => $stats->inactive_users ?? 0,
             'customer_percentage' => $totalUsers > 0 ? round(($customers / $totalUsers) * 100, 2) : 0,
             'vendor_percentage' => $totalUsers > 0 ? round(($vendors / $totalUsers) * 100, 2) : 0,
         ];
@@ -153,18 +162,21 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
         return $this->getByStatus('inactive');
     }
 
-    public function getForAdmin(array $filters = []): LengthAwarePaginator
+    public function getForAdmin(\App\Models\User $user, array $filters = []): LengthAwarePaginator
     {
-        $query = $this->resetQuery()
-            ->with(['addresses', 'vendor'])
-            ->getQuery();
+        $this->resetQuery();
+
+        // Apply AdminScopeable scope
+        $this->query->forAdmin($user);
+
+        $query = $this->with(['addresses', 'vendor'])->getQuery();
 
         // Apply filters
         if (isset($filters['search']) && $filters['search']) {
-            $query->where(function($q) use ($filters) {
+            $query->where(function ($q) use ($filters) {
                 $q->where('name', 'like', '%' . $filters['search'] . '%')
-                  ->orWhere('email', 'like', '%' . $filters['search'] . '%')
-                  ->orWhere('phone', 'like', '%' . $filters['search'] . '%');
+                    ->orWhere('email', 'like', '%' . $filters['search'] . '%')
+                    ->orWhere('phone', 'like', '%' . $filters['search'] . '%');
             });
         }
 
@@ -177,7 +189,7 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
         }
 
         if (isset($filters['city']) && $filters['city']) {
-            $query->whereHas('addresses', function($q) use ($filters) {
+            $query->whereHas('addresses', function ($q) use ($filters) {
                 $q->where('city', $filters['city']);
             });
         }
@@ -240,9 +252,9 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
     {
         return $this->resetQuery()
             ->withCount(['orders'])
-            ->with(['orders' => function($query) {
+            ->with(['orders' => function ($query) {
                 $query->selectRaw('user_id, SUM(grand_total) as total_spent, COUNT(*) as order_count')
-                      ->groupBy('user_id');
+                    ->groupBy('user_id');
             }])
             ->get();
     }
@@ -267,7 +279,7 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
         return $this->resetQuery()
             ->with(['addresses', 'vendor'])
             ->get()
-            ->map(function($user) {
+            ->map(function ($user) {
                 $user->email_verified = !is_null($user->email_verified_at);
                 return $user;
             });
@@ -293,5 +305,56 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
             ->with(['addresses', 'vendor'])
             ->orderBy('updated_at', 'desc')
             ->get();
+    }
+
+    public function getRoles(): Collection
+    {
+        return $this->model->newQuery()
+            ->distinct()
+            ->pluck('role');
+    }
+
+    public function getStatuses(): Collection
+    {
+        return $this->model->newQuery()
+            ->distinct()
+            ->pluck('status');
+    }
+
+    public function getAuthorsList(): Collection
+    {
+        return $this->model->newQuery()
+            ->whereIn('role', ['admin', 'vendor'])
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+    }
+
+    public function getWishlist(int $userId): Collection
+    {
+        $user = $this->find($userId);
+        return $user ? $user->wishlists()->with('product')->get() : new Collection();
+    }
+
+    public function addToWishlist(int $userId, int $productId): bool
+    {
+        $user = $this->find($userId);
+        if (!$user) return false;
+        $user->wishlists()->firstOrCreate(['product_id' => $productId]);
+        return true;
+    }
+
+    public function removeFromWishlist(int $userId, int $productId): bool
+    {
+        $user = $this->find($userId);
+        if (!$user) return false;
+        return $user->wishlists()->where('product_id', $productId)->delete() > 0;
+    }
+
+    public function inWishlist(int $userId, int $productId): bool
+    {
+        $user = $this->find($userId);
+        if (!$user) return false;
+        return $user->wishlists()->where('product_id', $productId)->exists();
     }
 }

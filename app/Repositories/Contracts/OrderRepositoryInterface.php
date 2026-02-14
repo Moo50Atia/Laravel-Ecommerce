@@ -108,4 +108,29 @@ interface OrderRepositoryInterface extends RepositoryInterface
      */
     public function getPaymentStatusesForAdmin(User $user): Collection;
     public function getTotalRevenue(User $user = null): float;
+
+    /**
+     * Get pending order (cart) for user
+     */
+    public function getPendingOrder(int $userId): ?\App\Models\Order;
+
+    /**
+     * Create a new pending order (cart) for user
+     */
+    public function createPendingOrder(int $userId): \App\Models\Order;
+
+    /**
+     * Add item to order
+     */
+    public function addItem(int $orderId, array $data): \App\Models\OrderItem;
+
+    /**
+     * Remove item from order
+     */
+    public function removeItem(int $itemId): bool;
+
+    /**
+     * Update order item details
+     */
+    public function updateItem(int $itemId, array $data): bool;
 }

@@ -5,15 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Attributes\Scope;
-
+use App\Traits\AdminScopeable;
+use App\Traits\HasActivityLog;
 
 class Order extends Model
 {
     /** @use HasFactory<\Database\Factories\OrderFactory> */
-    use HasFactory;
-    protected $fillable =[
+    use HasFactory, AdminScopeable, HasActivityLog;
+
+    protected $fillable = [
         "status",
         "total_amount",
         "discount_amount",
@@ -27,7 +27,17 @@ class Order extends Model
         "order_number",
         "vendor_id",
         "user_id",
+        "coupon_id",
     ];
+
+    /**
+     * Relationship path from Order to user_addresses for admin city scoping.
+     * Order → User → Addresses
+     */
+    protected function getAdminCityRelationPath(): string
+    {
+        return 'user.addresses';
+    }
 
     // Mutators
     public function setTotalAmountAttribute($value)
@@ -58,48 +68,31 @@ class Order extends Model
             $this->attributes['order_number'] = $value;
         }
     }
+
     protected $casts = [
         "shipping_address" => "array",
         "billing_address"  => "array",
     ];
-    
+
     public function user()
-{
-    return $this->belongsTo(User::class);
-}
-
-public function items()
-{
-    return $this->hasMany(OrderItem::class);
-}
-public function products()
-{
-    return $this->belongsToMany(Product::class, 'order_items')
-                ->withPivot('quantity', 'price', 'variant_id')
-                ->withTimestamps();
-}
-public function vendor (){
-    return $this->belongsTo(Vendor::class);
-}
-#[Scope]
-protected function ForAdmin(Builder $query, User $user): void
-{
-    if ($user->role == "superadmin" || $user->role == "super_admin") {
-        return;               // Super admin sees all data
+    {
+        return $this->belongsTo(User::class);
     }
 
-    // Filter orders based on user's city
-    if ($user->addresses && $user->addresses->city) {
-        $city = $user->addresses->city;
-        $query->where(function($q) use ($city, $user) {
-            // Filter by order's user city
-            $q->whereHas('user', function($userQuery) use ($city) {
-                $userQuery->whereHas('addresses', function($addressQuery) use ($city) {
-                    $addressQuery->where('city', $city);
-                });
-            });
-        });
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
     }
-    return;
-}
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'order_items')
+            ->withPivot('quantity', 'price', 'variant_id')
+            ->withTimestamps();
+    }
+
+    public function vendor()
+    {
+        return $this->belongsTo(Vendor::class);
+    }
 }

@@ -72,4 +72,14 @@ interface BlogRepositoryInterface extends RepositoryInterface
      * Get authors for admin
      */
     public function getAuthorsForAdmin(User $user): Collection;
+
+    /**
+     * Get blogs for public listing
+     */
+    public function getForPublic(array $filters = []): LengthAwarePaginator;
+
+    /**
+     * Get top rated blogs
+     */
+    public function getTopRated(int $limit = 5): Collection;
 }

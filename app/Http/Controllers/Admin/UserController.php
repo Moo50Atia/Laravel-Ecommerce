@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
+
 use Illuminate\Database\QueryException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserRequest;
@@ -10,7 +12,7 @@ use App\Services\ImageUploadService;
 use App\Repositories\Contracts\UserRepositoryInterface;
 
 class UserController extends Controller
-{ 
+{
     protected $imageUploadService;
     protected $userRepository;
 
@@ -33,9 +35,9 @@ class UserController extends Controller
     public function index(Request $request): \Illuminate\Contracts\View\View
     {
         $user = Auth::user();
-        
+
         // Use repository for user filtering and pagination
-        $users = $this->userRepository->getForAdmin([
+        $users = $this->userRepository->getForAdmin($user, [
             'search' => $request->get('search'),
             'role' => $request->get('role'),
             'status' => $request->get('status'),
@@ -48,18 +50,8 @@ class UserController extends Controller
         $statistics = $this->userRepository->getStatistics();
 
         // Get filter options using repository
-        $roles = $this->userRepository->getByRole('admin')
-            ->merge($this->userRepository->getByRole('vendor'))
-            ->merge($this->userRepository->getByRole('customer'))
-            ->pluck('role')
-            ->unique()
-            ->values();
-
-        $statuses = $this->userRepository->getByStatus('active')
-            ->merge($this->userRepository->getByStatus('inactive'))
-            ->pluck('status')
-            ->unique()
-            ->values();
+        $roles = $this->userRepository->getRoles();
+        $statuses = $this->userRepository->getStatuses();
 
         return view('admin.manage-users', compact(
             'users',
@@ -76,35 +68,35 @@ class UserController extends Controller
 
     public function store(UserRequest $request): \Illuminate\Http\RedirectResponse
     {
-        try{
-        $data = $request->validated();
-        // Default role if not provided
-        if (empty($data['role'])) {
-            $data['role'] = 'user';
-        }
-        // Normalize status from radio (accept 'active'/'suspended'/'banned')
-        $data['status'] = in_array($request->input('status'), ['active','suspended','banned'], true)
-            ? $request->input('status')
-            : 'active';
-        // Handle avatar upload using service
-        unset($data['avatar']);
-        
-        // Use repository to create user
-        $user = $this->userRepository->create($data);
-        
-        if ($request->hasFile('avatar')) {
-            $this->imageUploadService->uploadSingleImage($request->file('avatar'), $user, 'avatar');
-        }
-        return redirect()->route('admin.users.index')->with('success', 'Created successfully');
-        }
-          catch (QueryException $e) {
-        if ($e->getCode() == 23000) { // unique constraint violation
-            return back()->with('error', 'This email already exists. Please use another one.');
-        }
+        try {
+            $data = $request->validated();
+            // Default role if not provided
+            if (empty($data['role'])) {
+                $data['role'] = 'user';
+            }
+            // Normalize status from radio (accept 'active'/'suspended'/'banned')
+            $data['status'] = in_array($request->input('status'), ['active', 'suspended', 'banned'], true)
+                ? $request->input('status')
+                : 'active';
+            // Handle avatar upload using service
+            unset($data['avatar']);
 
-        return back()->with('error', 'Something went wrong. Please try again later.');
-    }}
-    
+            // Use repository to create user
+            $user = $this->userRepository->create($data);
+
+            if ($request->hasFile('avatar')) {
+                $this->imageUploadService->uploadSingleImage($request->file('avatar'), $user, 'avatar');
+            }
+            return redirect()->route('admin.users.index')->with('success', 'Created successfully');
+        } catch (QueryException $e) {
+            if ($e->getCode() == 23000) { // unique constraint violation
+                return back()->with('error', 'This email already exists. Please use another one.');
+            }
+
+            return back()->with('error', 'Something went wrong. Please try again later.');
+        }
+    }
+
 
     public function show(User $user): \Illuminate\Contracts\View\View
     {
@@ -128,13 +120,13 @@ class UserController extends Controller
             $data['role'] = $user->role ?? 'user';
         }
         // Normalize status from radio (accept 'active'/'suspended'/'banned')
-        $data['status'] = in_array($request->input('status'), ['active','suspended','banned'], true)
+        $data['status'] = in_array($request->input('status'), ['active', 'suspended', 'banned'], true)
             ? $request->input('status')
             : ($user->status ?? 'active');
-            
+
         // Use repository to update user
         $this->userRepository->update($user->id, $data);
-        
+
         // Handle avatar upload using service
         if ($request->hasFile('avatar')) {
             $this->imageUploadService->updateOrCreateImage($request->file('avatar'), $user, 'avatar');

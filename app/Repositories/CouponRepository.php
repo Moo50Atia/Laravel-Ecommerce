@@ -75,12 +75,12 @@ class CouponRepository extends BaseRepository implements CouponRepositoryInterfa
     public function getStatistics(): array
     {
         $allCoupons = $this->resetQuery()->get();
-        
+
         return [
             'total_coupons' => $allCoupons->count(),
             'active_coupons' => $allCoupons->where('status', 'active')->count(),
             'inactive_coupons' => $allCoupons->where('status', 'inactive')->count(),
-            'expired_coupons' => $allCoupons->filter(function($coupon) {
+            'expired_coupons' => $allCoupons->filter(function ($coupon) {
                 return $coupon->expires_at && $coupon->expires_at < now();
             })->count(),
             'percentage_coupons' => $allCoupons->where('type', 'percentage')->count(),
@@ -97,7 +97,7 @@ class CouponRepository extends BaseRepository implements CouponRepositoryInterfa
         // Apply filters
         if (isset($filters['search']) && $filters['search']) {
             $query->where('code', 'like', '%' . $filters['search'] . '%')
-                  ->orWhere('description', 'like', '%' . $filters['search'] . '%');
+                ->orWhere('description', 'like', '%' . $filters['search'] . '%');
         }
 
         if (isset($filters['status']) && $filters['status']) {
@@ -113,7 +113,7 @@ class CouponRepository extends BaseRepository implements CouponRepositoryInterfa
                 $query->where('expires_at', '<', now());
             } elseif ($filters['expired'] === 'no') {
                 $query->where('expires_at', null)
-                      ->orWhere('expires_at', '>', now());
+                    ->orWhere('expires_at', '>', now());
             }
         }
 
@@ -155,8 +155,17 @@ class CouponRepository extends BaseRepository implements CouponRepositoryInterfa
     public function getByUsageLimit(int $limit): Collection
     {
         return $this->resetQuery()
-            ->where('usage_limit', '<=', $limit)
-            ->orderBy('usage_limit', 'asc')
+            ->where('usage_limit', $limit)
+            ->get();
+    }
+
+    public function getRecentActive(int $limit = 5): Collection
+    {
+        return $this->resetQuery()
+            ->where('status', 'active')
+            ->where('expiry_date', '>=', now())
+            ->orderBy('created_at', 'desc')
+            ->take($limit)
             ->get();
     }
 }

@@ -12,18 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('coupons', function (Blueprint $table) {
-        $table->id();
-        $table->string('code')->unique();
-        $table->string('discription')->unique();
-        $table->enum('discount_type', ['percentage', 'fixed_amount']);
-        $table->decimal('discount_value', 10, 2);
-        $table->integer('max_uses')->nullable();
-        $table->timestamp('valid_from')->nullable();
-        $table->timestamp('valid_to')->nullable();
-        $table->decimal('min_order_amount', 12, 2)->nullable();
-        $table->boolean('is_active')->default(true);
-        $table->foreignId('product_id')->constrained()->onDelete('cascade');
-        $table->timestamps();
+            $table->id();
+            $table->string('code')->unique();
+            $table->string('description');
+            $table->enum('discount_type', ['percentage', 'fixed_amount']);
+            $table->decimal('discount_value', 10, 2);
+            $table->integer('max_uses')->nullable();
+            $table->timestamp('valid_from')->nullable();
+            $table->timestamp('valid_to')->nullable();
+            $table->decimal('min_order_amount', 12, 2)->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->foreignId('product_id')->constrained()->onDelete('cascade')->nullable();
+            $table->timestamps();
         });
     }
 

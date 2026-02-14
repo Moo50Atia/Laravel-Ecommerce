@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\all_pages;
+
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BlogRequest;
@@ -8,23 +9,26 @@ use App\Models\Blog;
 use Illuminate\Http\Request;
 use App\Models\BlogReview;
 use App\Services\ReviewManagementService;
+use App\Repositories\Contracts\BlogRepositoryInterface;
 
 class BlogController extends Controller
-{ 
+{
     protected $reviewManagementService;
+    protected $blogRepository;
 
-    public function __construct(ReviewManagementService $reviewManagementService)
-    {
+    public function __construct(
+        ReviewManagementService $reviewManagementService,
+        BlogRepositoryInterface $blogRepository
+    ) {
         $this->reviewManagementService = $reviewManagementService;
+        $this->blogRepository = $blogRepository;
     }
     public function index(): \Illuminate\Contracts\View\View
     {
-        
-$blogs = Blog::withAvg("reviews", "rate")->orderBy("created_at")->where("is_published" , true)->paginate(10);
+        $blogs = $this->blogRepository->getForPublic(['per_page' => 10]);
+        $special_blogs = $this->blogRepository->getTopRated(5);
 
-$special_blogs = Blog::withAvg("reviews", "rate")->orderBy("reviews_avg_rate", "desc")->where("is_published" , true)->get();
-
-        return view('public.blogs.index', compact('blogs' , "special_blogs"));
+        return view('public.blogs.index', compact('blogs', "special_blogs"));
     }
 
     public function create(): \Illuminate\Contracts\View\View
@@ -33,25 +37,25 @@ $special_blogs = Blog::withAvg("reviews", "rate")->orderBy("reviews_avg_rate", "
     }
 
     public function store(BlogRequest $request): \Illuminate\Http\RedirectResponse
-    { 
-            $data = $request->validated();
-            $data['author_id'] = Auth::user()->id;
-            // $data['is_published'] = $request->has('is_published');
-            // $data['published_at'] = $request->has('is_published') ? now() : null;
-            unset($data['featured_image']); // لو بتخزنها في جدول images
+    {
+        $data = $request->validated();
+        $data['author_id'] = Auth::user()->id;
+        // $data['is_published'] = $request->has('is_published');
+        // $data['published_at'] = $request->has('is_published') ? now() : null;
+        unset($data['featured_image']); // لو بتخزنها في جدول images
 
-            $blog = Blog::create($data);
+        $blog = Blog::create($data);
 
 
         if ($request->hasFile('featured_image')) {
-        $path = $request->file('featured_image')->store('blogs', 'public');
+            $path = $request->file('featured_image')->store('blogs', 'public');
 
-        // 3. أنشئ image مربوطة بالمقال
-        $blog->image()->create([
-            'url' => $path,
-        ]);
-    }
-        
+            // 3. أنشئ image مربوطة بالمقال
+            $blog->image()->create([
+                'url' => $path,
+            ]);
+        }
+
         return redirect()->route('blogs.index')->with('success', 'Created successfully');
     }
 
@@ -66,24 +70,24 @@ $special_blogs = Blog::withAvg("reviews", "rate")->orderBy("reviews_avg_rate", "
     }
 
     public function update(BlogRequest $request, Blog $blog): \Illuminate\Http\RedirectResponse
-    { 
-            $data = $request->validated();
-            $data['author_id'] = Auth::user()->id;
-            $data['is_published'] = $request->has('is_published');
-            $data['published_at'] = $request->has('is_published') ? now() : null;
-            unset($data['featured_image']); // لو بتخزنها في جدول images
+    {
+        $data = $request->validated();
+        $data['author_id'] = Auth::user()->id;
+        $data['is_published'] = $request->has('is_published');
+        $data['published_at'] = $request->has('is_published') ? now() : null;
+        unset($data['featured_image']); // لو بتخزنها في جدول images
 
 
         $blog->update($data);
         if ($request->hasFile('featured_image')) {
-        $path = $request->file('featured_image')->store('blogs', 'public');
+            $path = $request->file('featured_image')->store('blogs', 'public');
 
-        // 3. أنشئ image مربوطة بالمقال
-        $blog->image()->update([
-            'url' => $path,
-        ]);
-    }
-        
+            // 3. أنشئ image مربوطة بالمقال
+            $blog->image()->update([
+                'url' => $path,
+            ]);
+        }
+
         return redirect()->route('blogs.index')->with('success', 'Updated successfully');
     }
 
@@ -96,14 +100,14 @@ $special_blogs = Blog::withAvg("reviews", "rate")->orderBy("reviews_avg_rate", "
     public function rate(Request $request, Blog $blog): \Illuminate\Http\RedirectResponse
     {
         $result = $this->reviewManagementService->createOrUpdateBlogReview($request, $blog);
-        
+
         return redirect()->back()->with('success', $result['message']);
     }
 
     public function destroyReview(BlogReview $review): \Illuminate\Http\RedirectResponse
     {
         $result = $this->reviewManagementService->deleteBlogReview($review);
-        
+
         if ($result['success']) {
             return redirect()->back()->with('success', $result['message']);
         } else {
@@ -111,6 +115,3 @@ $special_blogs = Blog::withAvg("reviews", "rate")->orderBy("reviews_avg_rate", "
         }
     }
 }
-
-
-

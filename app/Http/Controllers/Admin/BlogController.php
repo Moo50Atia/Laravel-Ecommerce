@@ -27,7 +27,9 @@ class BlogController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        
+
+        $this->authorize('viewAny', Blog::class);
+
         // Use repository for blog filtering and pagination
         $blogs = $this->blogRepository->getForAdmin($user, [
             'search' => $request->get('search'),
@@ -41,7 +43,16 @@ class BlogController extends Controller
         // Get statistics using repository
         $statistics = $this->blogRepository->getAdminStatistics($user);
 
-        // Get authors for filter dropdown using repository
+        // Get authors for filter dropdown using optimized repository method
+        // Note: getAuthorsForAdmin in repo might strictly filter based on existing blogs.
+        // User might want list of ALL potential authors here?
+        // Existing code used getAuthorsForAdmin. Let's stick to it if it exists, or use getAuthorsList if general.
+        // getAuthorsForAdmin implies authors of EXISTING blogs. 
+        // Let's use getAuthorsForAdmin (assuming it uses the efficient query or we optimized it? We didn't check BlogRepository yet for that method).
+        // Safest is to use the optimized users list if we want to filter by potentially ANY author.
+        // But dashboard filter usually lists authors who actually have blogs.
+        // I'll keep getAuthorsForAdmin for index filter, assuming it checks existing blogs.
+
         $authors = $this->blogRepository->getAuthorsForAdmin($user)
             ->pluck('name')
             ->unique()
@@ -53,17 +64,20 @@ class BlogController extends Controller
 
     public function create()
     {
-        // Get authors using repository
-        $authors = $this->userRepository->getByRole('admin')
-            ->merge($this->userRepository->getByRole('vendor'));
-        
+        $this->authorize('create', Blog::class);
+
+        // Get authors using optimized repository method
+        $authors = $this->userRepository->getAuthorsList();
+
         return view('admin.blogs.create', compact('authors'));
     }
 
     public function store(CreateBlogRequest $request)
     {
+        $this->authorize('create', Blog::class);
+
         $user = Auth::user();
-        
+
         // Use repository to create blog
         $blog = $this->blogRepository->create([
             'title' => $request->get('title'),
@@ -77,7 +91,7 @@ class BlogController extends Controller
         // Handle cover image upload
         if ($request->hasFile('cover_image')) {
             $imagePath = $request->file('cover_image')->store('blog-covers', 'public');
-            
+
             Image::create([
                 'url' => $imagePath,
                 'type' => 'cover',
@@ -91,40 +105,23 @@ class BlogController extends Controller
 
     public function show(Blog $blog)
     {
-        // Check if the blog is accessible to the current admin
-        $user = Auth::user();
-        $accessibleBlog = Blog::where('id', $blog->id)->ForAdmin($user)->first();
-        
-        if (!$accessibleBlog && $user->role === 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-        
+        $this->authorize('view', $blog);
+
         return view('public.blogs.show', compact('blog'));
     }
 
     public function edit(Blog $blog)
     {
-        // Check if the blog is accessible to the current admin
-        $user = Auth::user();
-        $accessibleBlog = Blog::where('id', $blog->id)->ForAdmin($user)->first();
-        
-        if (!$accessibleBlog && $user->role === 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-        
+        $this->authorize('update', $blog);
+
         return view('public.blogs.edit', compact('blog'));
     }
 
     public function update(CreateBlogRequest $request, Blog $blog)
     {
-        // Check if the blog is accessible to the current admin
+        $this->authorize('update', $blog);
         $user = Auth::user();
-        $accessibleBlog = $this->blogRepository->find($blog->id);
-        
-        if (!$accessibleBlog && $user->role === 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-        
+
         // Use repository to update blog
         $this->blogRepository->update($blog->id, [
             'title' => $request->get('title'),
@@ -141,9 +138,9 @@ class BlogController extends Controller
             if ($blog->coverImage) {
                 $blog->coverImage->delete();
             }
-            
+
             $imagePath = $request->file('cover_image')->store('blog-covers', 'public');
-            
+
             Image::create([
                 'url' => $imagePath,
                 'type' => 'cover',
@@ -157,14 +154,8 @@ class BlogController extends Controller
 
     public function destroy(Blog $blog)
     {
-        // Check if the blog is accessible to the current admin
-        $user = Auth::user();
-        $accessibleBlog = $this->blogRepository->find($blog->id);
-        
-        if (!$accessibleBlog && $user->role === 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-        
+        $this->authorize('delete', $blog);
+
         // Use repository to delete blog
         $this->blogRepository->delete($blog->id);
         return redirect()->route('admin.blogs.index')->with('success', 'تم حذف المدونة بنجاح');

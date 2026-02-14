@@ -36,7 +36,7 @@ class BlogRepository extends BaseRepository implements BlogRepositoryInterface
         }
 
         if (isset($filters['author']) && $filters['author']) {
-            $query->whereHas('author', function($q) use ($filters) {
+            $query->whereHas('author', function ($q) use ($filters) {
                 $q->where('name', 'like', '%' . $filters['author'] . '%');
             });
         }
@@ -111,10 +111,10 @@ class BlogRepository extends BaseRepository implements BlogRepositoryInterface
             'total_blogs' => $allBlogs->count(),
             'published_blogs' => $allBlogs->where('is_published', true)->count(),
             'draft_blogs' => $allBlogs->where('is_published', false)->count(),
-            'total_reviews' => $allBlogs->sum(function($blog) {
+            'total_reviews' => $allBlogs->sum(function ($blog) {
                 return $blog->reviews->count();
             }),
-            'average_reviews' => $allBlogs->avg(function($blog) {
+            'average_reviews' => $allBlogs->avg(function ($blog) {
                 return $blog->reviews->count();
             }),
         ];
@@ -132,7 +132,7 @@ class BlogRepository extends BaseRepository implements BlogRepositoryInterface
     public function getByStatus(string $status): Collection
     {
         $isPublished = $status === 'published';
-        
+
         return $this->resetQuery()
             ->where('is_published', $isPublished)
             ->with(['author', 'reviews'])
@@ -159,7 +159,7 @@ class BlogRepository extends BaseRepository implements BlogRepositoryInterface
     public function getCountByStatus(string $status, User $user = null): int
     {
         $query = $this->resetQuery()->getQuery();
-        
+
         if ($user) {
             $query->ForAdmin($user);
         }
@@ -170,14 +170,36 @@ class BlogRepository extends BaseRepository implements BlogRepositoryInterface
 
     public function getAuthorsForAdmin(User $user): Collection
     {
+        return $this->model->newQuery()->ForAdmin($user)
+            ->join('users', 'blogs.author_id', '=', 'users.id')
+            ->select('users.id', 'users.name')
+            ->distinct()
+            ->orderBy('users.name')
+            ->get();
+    }
+
+    public function getForPublic(array $filters = []): LengthAwarePaginator
+    {
+        $this->resetQuery();
+        $query = $this->getQuery();
+
+        $query->where('is_published', true)
+            ->withAvg('reviews', 'rate')
+            ->with(['author', 'image']); // Eager load relationships
+
+        // Sorting
+        $query->orderBy('created_at', 'desc');
+
+        return $this->paginate($filters['per_page'] ?? 10);
+    }
+
+    public function getTopRated(int $limit = 5): Collection
+    {
         return $this->resetQuery()
-            ->getQuery()
-            ->ForAdmin($user)
-            ->with(['author'])
-            ->whereHas('author')
-            ->get()
-            ->pluck('author')
-            ->unique('id')
-            ->values();
+            ->where('is_published', true)
+            ->withAvg('reviews', 'rate')
+            ->orderByDesc('reviews_avg_rate')
+            ->take($limit)
+            ->get();
     }
 }

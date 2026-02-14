@@ -24,9 +24,9 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
 
         // Apply filters
         if (isset($filters['search']) && $filters['search']) {
-            $query->where(function($q) use ($filters) {
+            $query->where(function ($q) use ($filters) {
                 $q->where('name', 'like', '%' . $filters['search'] . '%')
-                  ->orWhere('description', 'like', '%' . $filters['search'] . '%');
+                    ->orWhere('description', 'like', '%' . $filters['search'] . '%');
             });
         }
 
@@ -114,10 +114,10 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
     {
         return $this->resetQuery()
             ->getQuery()
-            ->where(function($q) use ($query) {
+            ->where(function ($q) use ($query) {
                 $q->where('name', 'like', '%' . $query . '%')
-                  ->orWhere('description', 'like', '%' . $query . '%')
-                  ->orWhere('short_description', 'like', '%' . $query . '%');
+                    ->orWhere('description', 'like', '%' . $query . '%')
+                    ->orWhere('short_description', 'like', '%' . $query . '%');
             })
             ->with(['vendor', 'category', 'image'])
             ->get();
@@ -127,7 +127,7 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
     {
         return $this->resetQuery()
             ->getQuery()
-            ->whereHas('variants', function($q) {
+            ->whereHas('variants', function ($q) {
                 $q->where('stock', '>', 0);
             })
             ->with(['variants', 'image'])
@@ -143,29 +143,81 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
 
     public function getAdminStatistics(User $user): array
     {
-        $allProducts = $this->resetQuery()
-            ->getQuery()
-            ->ForAdmin($user)
-            ->get();
+        // Base stats using conditional aggregation
+        $stats = $this->model->newQuery()->ForAdmin($user)
+            ->selectRaw('
+                COUNT(*) as total_products,
+                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_products,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_products,
+                AVG(price) as average_price,
+                SUM(price) as total_value
+            ')
+            ->first();
+
+        // Total variants requires joining/counting related table
+        // We do a separate efficient query for this
+        $totalVariants = $this->model->newQuery()->ForAdmin($user)
+            ->join('product_variants', 'products.id', '=', 'product_variants.product_id')
+            ->count('product_variants.id');
 
         return [
-            'total_products' => $allProducts->count(),
-            'active_products' => $allProducts->where('is_active', true)->count(),
-            'inactive_products' => $allProducts->where('is_active', false)->count(),
-            'total_variants' => $allProducts->sum(function($product) {
-                return $product->variants->count();
-            }),
-            'average_price' => $allProducts->avg('price'),
-            'total_value' => $allProducts->sum('price'),
+            'total_products' => $stats->total_products ?? 0,
+            'active_products' => $stats->active_products ?? 0,
+            'inactive_products' => $stats->inactive_products ?? 0,
+            'total_variants' => $totalVariants,
+            'average_price' => $stats->average_price ?? 0,
+            'total_value' => $stats->total_value ?? 0,
         ];
     }
 
-    public function getSpecialProducts(): Collection
+    public function getSpecialProducts(int $limit = 10): Collection
     {
         return $this->resetQuery()
+            ->where('is_active', true)
             ->withAvg('productReviews', 'rating')
             ->orderByDesc('product_reviews_avg_rating')
+            ->take($limit)
             ->get();
+    }
+
+    public function getForPublic(array $filters = []): LengthAwarePaginator
+    {
+        $this->resetQuery();
+        $query = $this->getQuery(); // Access the builder directly
+
+        $query->where('is_active', true)
+            ->with(['vendor.user', 'category', 'image', 'productReviews']);
+
+        // Apply filters
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('description', 'like', '%' . $search . '%');
+            });
+        }
+
+        if (!empty($filters['category_id'])) {
+            $query->where('category_id', $filters['category_id']);
+        }
+
+        if (!empty($filters['vendor_id'])) {
+            $query->where('vendor_id', $filters['vendor_id']);
+        }
+
+        if (isset($filters['min_price'])) {
+            $query->where('price', '>=', $filters['min_price']);
+        }
+
+        if (isset($filters['max_price'])) {
+            $query->where('price', '<=', $filters['max_price']);
+        }
+
+        // Sorting
+        $query->orderBy('created_at', 'desc');
+
+        // Use repository paginate to ensure reset
+        return $this->paginate($filters['per_page'] ?? 10);
     }
 
     public function getWithVariants(): Collection
@@ -204,9 +256,9 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
 
         // Apply filters
         if (isset($filters['search']) && $filters['search']) {
-            $query->where(function($q) use ($filters) {
+            $query->where(function ($q) use ($filters) {
                 $q->where('name', 'like', '%' . $filters['search'] . '%')
-                  ->orWhere('description', 'like', '%' . $filters['search'] . '%');
+                    ->orWhere('description', 'like', '%' . $filters['search'] . '%');
             });
         }
 
@@ -238,11 +290,11 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
     public function getWithStockInfo(): Collection
     {
         return $this->resetQuery()
-            ->with(['variants' => function($query) {
+            ->with(['variants' => function ($query) {
                 $query->select('id', 'product_id', 'stock', 'name');
             }])
             ->get()
-            ->map(function($product) {
+            ->map(function ($product) {
                 $product->total_stock = $product->variants->sum('stock');
                 return $product;
             });

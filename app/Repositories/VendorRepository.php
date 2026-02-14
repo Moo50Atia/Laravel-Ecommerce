@@ -22,6 +22,14 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
             ->get();
     }
 
+    public function getVendorList(): Collection
+    {
+        return $this->model->newQuery()
+            ->join('users', 'vendors.user_id', '=', 'users.id')
+            ->select('vendors.id', 'vendors.store_name', 'users.name as user_name')
+            ->get();
+    }
+
     public function getWithProducts(): Collection
     {
         return $this->resetQuery()
@@ -74,10 +82,10 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
     {
         return $this->resetQuery()
             ->getQuery()
-            ->where(function($q) use ($query) {
+            ->where(function ($q) use ($query) {
                 $q->where('store_name', 'like', '%' . $query . '%')
-                  ->orWhere('description', 'like', '%' . $query . '%')
-                  ->orWhere('slug', 'like', '%' . $query . '%');
+                    ->orWhere('description', 'like', '%' . $query . '%')
+                    ->orWhere('slug', 'like', '%' . $query . '%');
             })
             ->with(['user', 'image'])
             ->get();
@@ -85,41 +93,52 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
 
     public function getStatistics(): array
     {
-        $totalVendors = $this->resetQuery()->count();
-        $vendorsWithProducts = $this->resetQuery()
-            ->whereHas('products')
-            ->count();
-        $vendorsWithOrders = $this->resetQuery()
-            ->whereHas('orders')
-            ->count();
-        $averageRating = $this->resetQuery()->avg('rating');
-        $averageCommission = $this->resetQuery()->avg('commission_rate');
+        // Combined scalar stats
+        $stats = $this->model->newQuery()
+            ->selectRaw('
+                COUNT(*) as total_vendors,
+                AVG(rating) as average_rating,
+                AVG(commission_rate) as average_commission
+            ')
+            ->first();
+
+        $totalVendors = $stats->total_vendors ?? 0;
+
+        // Relation counts still need separate queries or subqueries
+        // We'll keep them separate for clarity as they involve different tables
+        $vendorsWithProducts = $this->resetQuery()->whereHas('products')->count();
+        $vendorsWithOrders = $this->resetQuery()->whereHas('orders')->count();
 
         return [
             'total_vendors' => $totalVendors,
             'vendors_with_products' => $vendorsWithProducts,
             'vendors_with_orders' => $vendorsWithOrders,
-            'average_rating' => round($averageRating, 2),
-            'average_commission_rate' => round($averageCommission, 2),
+            'average_rating' => round($stats->average_rating ?? 0, 2),
+            'average_commission_rate' => round($stats->average_commission ?? 0, 2),
             'active_vendors_percentage' => $totalVendors > 0 ? round(($vendorsWithProducts / $totalVendors) * 100, 2) : 0,
         ];
     }
 
-    public function getForAdmin(array $filters = []): LengthAwarePaginator
+    public function getForAdmin(\App\Models\User $user, array $filters = []): LengthAwarePaginator
     {
-        $query = $this->resetQuery()
-            ->with(['user', 'image'])
+        $this->resetQuery();
+
+        // Apply AdminScopeable scope
+        $this->query->forAdmin($user);
+
+        $query = $this->with(['user', 'image'])
+            ->withCount(['products', 'orders'])
             ->getQuery();
 
         // Apply filters
         if (isset($filters['search']) && $filters['search']) {
-            $query->where(function($q) use ($filters) {
+            $query->where(function ($q) use ($filters) {
                 $q->where('store_name', 'like', '%' . $filters['search'] . '%')
-                  ->orWhere('description', 'like', '%' . $filters['search'] . '%')
-                  ->orWhereHas('user', function($userQuery) use ($filters) {
-                      $userQuery->where('name', 'like', '%' . $filters['search'] . '%')
-                               ->orWhere('email', 'like', '%' . $filters['search'] . '%');
-                  });
+                    ->orWhere('description', 'like', '%' . $filters['search'] . '%')
+                    ->orWhereHas('user', function ($userQuery) use ($filters) {
+                        $userQuery->where('name', 'like', '%' . $filters['search'] . '%')
+                            ->orWhere('email', 'like', '%' . $filters['search'] . '%');
+                    });
             });
         }
 
@@ -235,7 +254,7 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
     public function getHighCommissionVendors(): Collection
     {
         $averageCommission = $this->resetQuery()->avg('commission_rate');
-        
+
         return $this->resetQuery()
             ->where('commission_rate', '>', $averageCommission)
             ->with(['user', 'image'])
@@ -246,7 +265,7 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
     public function getLowCommissionVendors(): Collection
     {
         $averageCommission = $this->resetQuery()->avg('commission_rate');
-        
+
         return $this->resetQuery()
             ->where('commission_rate', '<', $averageCommission)
             ->with(['user', 'image'])
@@ -277,10 +296,10 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
     {
         return $this->resetQuery()
             ->with(['user', 'image'])
-            ->withCount(['orders' => function($query) {
+            ->withCount(['orders' => function ($query) {
                 $query->where('created_at', '>=', Carbon::now()->subMonth());
             }])
-            ->withSum(['orders' => function($query) {
+            ->withSum(['orders' => function ($query) {
                 $query->where('created_at', '>=', Carbon::now()->subMonth());
             }], 'grand_total')
             ->get();
@@ -292,7 +311,7 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
     public function getByCity(string $city): Collection
     {
         return $this->resetQuery()
-            ->whereHas('user.addresses', function($query) use ($city) {
+            ->whereHas('user.addresses', function ($query) use ($city) {
                 $query->where('city', $city);
             })
             ->with(['user', 'image'])
@@ -305,10 +324,10 @@ class VendorRepository extends BaseRepository implements VendorRepositoryInterfa
     public function getWithBestSellingProducts(): Collection
     {
         return $this->resetQuery()
-            ->with(['products' => function($query) {
+            ->with(['products' => function ($query) {
                 $query->withCount('orderItems')
-                      ->orderBy('order_items_count', 'desc')
-                      ->take(3);
+                    ->orderBy('order_items_count', 'desc')
+                    ->take(3);
             }])
             ->with(['user', 'image'])
             ->get();

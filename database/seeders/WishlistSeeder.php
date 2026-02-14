@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\User;
@@ -11,13 +12,23 @@ class WishlistSeeder extends Seeder
     public function run(): void
     {
         $users = User::all();
-        $products = Product::pluck('id')->toArray();
+        $productIds = Product::pluck('id')->toArray();
+
+        if (empty($productIds)) {
+            return;
+        }
 
         foreach ($users as $user) {
-            Wishlist::factory(3)->create([
-                'user_id' => $user->id,
-                'product_id' => fake()->randomElement($products),
-            ]);
+            // Pick 3 unique random products for each user (no duplicates)
+            $count = min(3, count($productIds));
+            $selectedProducts = collect($productIds)->random($count)->all();
+
+            foreach ($selectedProducts as $productId) {
+                Wishlist::create([
+                    'user_id' => $user->id,
+                    'product_id' => $productId,
+                ]);
+            }
         }
     }
 }

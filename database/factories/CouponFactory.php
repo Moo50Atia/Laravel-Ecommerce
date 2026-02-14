@@ -27,7 +27,7 @@ class CouponFactory extends Factory
             'valid_to' => now()->addMonth(),
             'min_order_amount' => 50,
             'is_active' => true,
-            "discription" => fake()->sentence(6, true),
+            "description" => fake()->sentence(6, true),
             'product_id' => Product::inRandomOrder()->first()?->id, // ✅ أضف دي
         ];
     }

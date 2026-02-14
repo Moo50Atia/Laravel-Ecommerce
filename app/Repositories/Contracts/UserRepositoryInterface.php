@@ -95,7 +95,7 @@ interface UserRepositoryInterface extends RepositoryInterface
     /**
      * Get users for admin with filtering
      */
-    public function getForAdmin(array $filters = []): LengthAwarePaginator;
+    public function getForAdmin(\App\Models\User $user, array $filters = []): LengthAwarePaginator;
 
     /**
      * Get user count by role
@@ -111,4 +111,39 @@ interface UserRepositoryInterface extends RepositoryInterface
      * Get users by registration date range
      */
     public function getByRegistrationDateRange(string $startDate, string $endDate): Collection;
+
+    /**
+     * Get all distinct roles
+     */
+    public function getRoles(): Collection;
+
+    /**
+     * Get all distinct statuses
+     */
+    public function getStatuses(): Collection;
+
+    /**
+     * Get list of potential authors (admins and vendors)
+     */
+    public function getAuthorsList(): Collection;
+
+    /**
+     * Get user wishlist with products
+     */
+    public function getWishlist(int $userId): Collection;
+
+    /**
+     * Add product to user wishlist
+     */
+    public function addToWishlist(int $userId, int $productId): bool;
+
+    /**
+     * Remove product from user wishlist
+     */
+    public function removeFromWishlist(int $userId, int $productId): bool;
+
+    /**
+     * Check if product is in user wishlist
+     */
+    public function inWishlist(int $userId, int $productId): bool;
 }

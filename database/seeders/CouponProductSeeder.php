@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\Coupon;
@@ -17,12 +18,12 @@ class CouponProductSeeder extends Seeder
             // هنربط كل كوبون بـ 3 منتجات عشوائية
             $selectedProducts = fake()->randomElements($products, 3);
 
-            foreach ($selectedProducts as $productId) {
-                DB::table('coupon_products')->insert([
-                    'coupon_id' => $coupon->id,
-                    'product_id' => $productId,
-                ]);
-            }
+            // foreach ($selectedProducts as $productId) {
+            //     DB::table('coupon_products')->insert([
+            //         'coupon_id' => $coupon->id,
+            //         'product_id' => $productId,
+            //     ]);
+            // }
         }
     }
 }
