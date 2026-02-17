@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+
 use App\Models\Coupon;
 use Illuminate\Http\Request;
 use App\Repositories\Contracts\CouponRepositoryInterface;
+use App\Http\Requests\Admin\CouponRequest;
 
 class CouponController extends Controller
 {
@@ -39,23 +41,13 @@ class CouponController extends Controller
         return view('admin.coupons.create');
     }
 
-    public function store(Request $request)
+    public function store(CouponRequest $request)
     {
-        $validated = $request->validate([
-            'code' => 'required|string|unique:coupons,code|max:50',
-            'type' => 'required|in:percentage,fixed,free_shipping',
-            'discount' => 'required|numeric|min:0',
-            'minimum_amount' => 'nullable|numeric|min:0',
-            'usage_limit' => 'nullable|integer|min:1',
-            'starts_at' => 'nullable|date',
-            'expires_at' => 'nullable|date|after:starts_at',
-            'status' => 'required|in:active,inactive',
-            'description' => 'nullable|string|max:500'
-        ]);
+        $validated = $request->validated();
 
         // Use repository to create coupon
         $this->couponRepository->create($validated);
-        
+
         return redirect()->route('admin.coupons.index')->with('success', 'Coupon created successfully');
     }
 
@@ -71,23 +63,13 @@ class CouponController extends Controller
         return view('admin.coupons.edit', compact('coupon'));
     }
 
-    public function update(Request $request, Coupon $coupon)
+    public function update(CouponRequest $request, Coupon $coupon)
     {
-        $validated = $request->validate([
-            'code' => 'required|string|max:50|unique:coupons,code,' . $coupon->id,
-            'type' => 'required|in:percentage,fixed,free_shipping',
-            'discount' => 'required|numeric|min:0',
-            'minimum_amount' => 'nullable|numeric|min:0',
-            'usage_limit' => 'nullable|integer|min:1',
-            'starts_at' => 'nullable|date',
-            'expires_at' => 'nullable|date|after:starts_at',
-            'status' => 'required|in:active,inactive',
-            'description' => 'nullable|string|max:500'
-        ]);
+        $validated = $request->validated();
 
         // Use repository to update coupon
         $this->couponRepository->update($coupon->id, $validated);
-        
+
         return redirect()->route('admin.coupons.index')->with('success', 'Coupon updated successfully');
     }
 

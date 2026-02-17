@@ -7,17 +7,33 @@ use Illuminate\Database\Eloquent\Model;
 
 class Subscription extends Model
 {
-    /** @use HasFactory<\Database\Factories\SubscriptionFactory> */
     use HasFactory;
 
     protected $fillable = [
-        "status",
-        "start_date",
-        "end_date",
+        'user_id',
+        'plan_id',
+        'status',
+        'start_date',
+        'end_date',
     ];
-    public function user()
-{
-    return $this->belongsTo(User::class);
-}
 
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class);
+    }
+
+    public function isActive()
+    {
+        return $this->status === 'active' && (!$this->end_date || $this->end_date->isFuture());
+    }
 }

@@ -6,47 +6,50 @@ use App\Http\Controllers\User\DashboardController;
 use App\Http\Middleware\RoleMiddleware;
 use App\Models\Wishlist;
 use Illuminate\Http\Request;
-USE Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Auth;
+
 Route::prefix('user')->name('user.')->middleware(['auth', 'role:user'])->group(function () {
-    Route::get('/dashboard', function (){
-
-        return view("user.dashboard");
-    } )->name('dashboard');
+  Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 
 
-      Route::get('/wishlist', [HandleOrdersControler::class,"Wishlist"] )->name('wishlist');
+  Route::get('/wishlist', [HandleOrdersControler::class, "Wishlist"])->name('wishlist');
 
 
-    Route::delete("/wishlist" , [HandleOrdersControler::class,"DeleteWishlist"])->name("wishlist.delete");
-
-    
-      Route::get('/cart', [HandleOrdersControler::class,"GetCart"] )->name('cart');
-
-       Route::get('/checkout', [HandleOrdersControler::class,"GetCheckout"])->name('checkout'); 
+  Route::delete("/wishlist", [HandleOrdersControler::class, "DeleteWishlist"])->name("wishlist.delete");
 
 
+  Route::get('/cart', [HandleOrdersControler::class, "GetCart"])->name('cart');
 
-           Route::get('/orders', [HandleOrdersControler::class,"GetOrders"])->name('orders');
-
-        Route::get("/choes-variant" , [HandleOrdersControler::class,"GetVariants"])->name("chose.variant");
-
-        Route::post("/cart" ,[HandleOrdersControler::class,"PostCart"])->name("cart.store");
+  Route::get('/checkout', [HandleOrdersControler::class, "GetCheckout"])->name('checkout');
 
 
 
-           Route::get('/order-details/{id}', [HandleOrdersControler::class,"GetOrderDetails"])->name('order-details');
+  Route::get('/orders', [HandleOrdersControler::class, "GetOrders"])->name('orders');
 
-    Route::get('/products',[HandleOrdersControler::class,"GetProducts"])->name('products');
+  Route::get("/choes-variant", [HandleOrdersControler::class, "GetVariants"])->name("chose.variant");
 
-    Route::delete("/cart/{id}" ,[HandleOrdersControler::class,"DestroyItem"])->name("delete_item");
-
-    Route::put("/cart/{id}" ,[HandleOrdersControler::class,"UpdateCart"])->name("update_cart");
-
-    Route::get("/checkout/{id}" , [HandleOrdersControler::class,"GetCheckout"])->name("checkout");
-
-    Route::post("/checkout/{id}" , [HandleOrdersControler::class,"PostCheckout"])->name("checkout.store");
-
-  });
+  Route::post("/cart", [HandleOrdersControler::class, "PostCart"])->name("cart.store");
 
 
+
+  Route::get('/order-details/{id}', [HandleOrdersControler::class, "GetOrderDetails"])->name('order-details');
+
+  Route::get('/products', [HandleOrdersControler::class, "GetProducts"])->name('products');
+
+  Route::delete("/cart/{id}", [HandleOrdersControler::class, "DestroyItem"])->name("delete_item");
+
+  Route::put("/cart/{id}", [HandleOrdersControler::class, "UpdateCart"])->name("update_cart");
+
+  Route::get("/checkout/{id}", [HandleOrdersControler::class, "GetCheckout"])->name("checkout");
+
+  Route::post("/checkout/{id}", [HandleOrdersControler::class, "PostCheckout"])->name("checkout.store");
+
+  // Subscription routes
+  Route::get('/subscription', [\App\Http\Controllers\User\SubscriptionController::class, 'index'])->name('subscription.index');
+  Route::post('/subscription/subscribe', [\App\Http\Controllers\User\SubscriptionController::class, 'subscribe'])->name('subscription.subscribe');
+  Route::post('/subscription/cancel', [\App\Http\Controllers\User\SubscriptionController::class, 'cancel'])->name('subscription.cancel');
+
+  // Order Tracking
+  Route::get('/orders/{id}/tracking', [\App\Http\Controllers\User\OrderTrackingController::class, 'show'])->name('orders.tracking');
+});

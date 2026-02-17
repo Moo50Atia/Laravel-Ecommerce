@@ -56,13 +56,15 @@ class HandleOrdersControler extends Controller
         return view("user.checkout", compact("order", "NumOfProduct"));
     }
 
-    public function PostCheckout(Request $request, $orderId)
+    public function PostCheckout(\App\Http\Requests\CheckoutRequest $request, $orderId)
     {
         $order = $this->orderRepository->find((int)$orderId);
 
-        if (!$order || $order->user_id !== Auth::id()) {
-            return redirect()->route("user.cart")->with("error", "Unauthorized access");
+        if (!$order) {
+            return redirect()->route("user.cart")->with("error", "Order not found");
         }
+
+        $this->authorize('update', $order);
 
         $this->orderRepository->update((int)$orderId, [
             "name" => $request->name,
@@ -119,9 +121,11 @@ class HandleOrdersControler extends Controller
     {
         $order = $this->orderRepository->find((int)$id);
 
-        if (!$order || $order->user_id !== Auth::id()) {
-            return redirect()->route("user.orders")->with("error", "Unauthorized access");
+        if (!$order) {
+            return redirect()->route("user.orders")->with("error", "Order not found");
         }
+
+        $this->authorize('view', $order);
 
         $order_items = $order->items;
         return view("user.order-details", compact("order", "order_items"));
@@ -142,9 +146,11 @@ class HandleOrdersControler extends Controller
     {
         $order = $this->orderRepository->find((int)$orderId);
 
-        if (!$order || $order->user_id !== Auth::id()) {
-            return redirect()->route("user.cart")->with("error", "Unauthorized access");
+        if (!$order) {
+            return redirect()->route("user.cart")->with("error", "Order not found");
         }
+
+        $this->authorize('update', $order);
 
         $total = 0;
         foreach ($request->items as $itemId => $data) {

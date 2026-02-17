@@ -99,6 +99,11 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    public function subscription()
+    {
+        return $this->hasOne(Subscription::class);
+    }
+
     public function wishlists()
     {
         return $this->hasMany(Wishlist::class);
@@ -112,11 +117,6 @@ class User extends Authenticatable
     public function blogs()
     {
         return $this->hasMany(Blog::class, 'author_id');
-    }
-
-    public function subscription()
-    {
-        return $this->hasOne(Subscription::class);
     }
 
     public function images()

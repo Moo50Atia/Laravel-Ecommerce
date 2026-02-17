@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+
 use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Repositories\Contracts\CategoryRepositoryInterface;
+use App\Http\Requests\Admin\CategoryRequest;
 
 class CategoryController extends Controller
 {
@@ -42,19 +44,13 @@ class CategoryController extends Controller
         return view('admin.categories.create', compact('parentCategories'));
     }
 
-    public function store(Request $request)
+    public function store(CategoryRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'parent_id' => 'nullable|exists:categories,id',
-            'status' => 'required|in:active,inactive',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
+        $validated = $request->validated();
 
         // Use repository to create category
         $this->categoryRepository->create($validated);
-        
+
         return redirect()->route('admin.categories.index')->with('success', 'Category created successfully');
     }
 
@@ -72,19 +68,13 @@ class CategoryController extends Controller
         return view('admin.categories.edit', compact('category', 'parentCategories'));
     }
 
-    public function update(Request $request, Category $category)
+    public function update(CategoryRequest $request, Category $category)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'parent_id' => 'nullable|exists:categories,id',
-            'status' => 'required|in:active,inactive',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
+        $validated = $request->validated();
 
         // Use repository to update category
         $this->categoryRepository->update($category->id, $validated);
-        
+
         return redirect()->route('admin.categories.index')->with('success', 'Category updated successfully');
     }
 
