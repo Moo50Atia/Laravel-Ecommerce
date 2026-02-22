@@ -3,7 +3,8 @@
 namespace App\Repositories\Contracts;
 
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
+// use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 interface OrderRepositoryInterface extends RepositoryInterface

@@ -162,8 +162,8 @@ class CouponRepository extends BaseRepository implements CouponRepositoryInterfa
     public function getRecentActive(int $limit = 5): Collection
     {
         return $this->resetQuery()
-            ->where('status', 'active')
-            ->where('expiry_date', '>=', now())
+            ->where('is_active', true)
+            ->where('valid_to', '>=', now())
             ->orderBy('created_at', 'desc')
             ->take($limit)
             ->get();

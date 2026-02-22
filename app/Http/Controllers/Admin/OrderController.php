@@ -26,7 +26,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        
+
         // Use repository for order filtering and pagination
         $orders = $this->orderRepository->getForAdmin($user, [
             'search' => $request->get('search'),
@@ -47,9 +47,9 @@ class OrderController extends Controller
         $statuses = $this->orderRepository->getStatusesForAdmin($user);
         $paymentMethods = $this->orderRepository->getPaymentMethodsForAdmin($user);
         $paymentStatuses = $this->orderRepository->getPaymentStatusesForAdmin($user);
-
+        // dd($orders, $statistics, $statuses, $paymentMethods, $paymentStatuses);
         return view('admin.manage-orders', compact(
-            'orders', 
+            'orders',
             'statistics',
             'statuses',
             'paymentMethods',
@@ -73,12 +73,12 @@ class OrderController extends Controller
     public function update(UpdateOrderRequest $request, Order $order)
     {
         $data = $request->only([
-            'status', 
-            'payment_status', 
-            'total_amount', 
-            'discount_amount', 
-            'shipping_amount', 
-            'payment_method', 
+            'status',
+            'payment_status',
+            'total_amount',
+            'discount_amount',
+            'shipping_amount',
+            'payment_method',
             'notes'
         ]);
 

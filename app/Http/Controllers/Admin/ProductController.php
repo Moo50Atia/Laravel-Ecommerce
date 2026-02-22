@@ -54,10 +54,10 @@ class ProductController extends Controller
 
         // Get vendors for filter dropdown using repository
         $vendors = $this->vendorRepository->getVendorList()
-            ->pluck('user_name')
             ->unique()
             ->filter()
             ->values();
+        // dd($products, $statistics, $vendors);
 
         return view('admin.manage-products', compact(
             'products',
